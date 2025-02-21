@@ -3,12 +3,12 @@ import os
 import sys
 import threading
 import time
-import rospy
+# import rospy
 import glob
 import json
 
 
-from ui.tui.main_view import TUI
+# from ui.tui.main_view import TUI
 from utils import environment
 from utils.traffic import TrafficManager
 from utils.colors import Colors
@@ -67,10 +67,13 @@ def check_args(argv):
                         action='store_true',
                         help='{}Run Behavior Metrics F1 with random spawning{}'.format(
                             Colors.OKBLUE, Colors.ENDC))
+    
+    parser.add_argument('--ros_version', type=str, choices=['ros1', 'ros2'], required=True,
+                        help='Select the ROS version to use: "ros1" for ROS1 or "ros2" for ROS2.')
 
     args = parser.parse_args()
 
-    config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False}
+    config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False, 'ros_version': args.ros_version}
     if args.config:
         config_data['config'] = []
         for config_file in args.config:
@@ -93,6 +96,27 @@ def check_args(argv):
 
     return config_data
 
+def init_node(ros_version):
+    """
+    Initializes the ROS node based on the selected version.
+    
+    Arguments:
+        ros_version (str): The ROS version ("ros1" or "ros2").
+    
+    Returns:
+        For ROS1: returns None (as rospy manages the node globally).
+        For ROS2: returns the created node.
+    """
+    if ros_version == 'ros1':
+        import rospy
+        rospy.init_node('my_ros1_node')
+        return None  # In rospy, the node is managed globally
+    elif ros_version == 'ros2':
+        import rclpy
+        rclpy.init()
+        node = rclpy.create_node('my_ros2_node')
+        return node
+
 def main_win(configuration, controller):
     """shows the Qt main window of the application
 
@@ -113,6 +137,21 @@ def main_win(configuration, controller):
         main_window.show()
 
         app.exec_()
+    except Exception as e:
+        logger.error(e)
+        
+def main_tui(configuration, controller):
+    """
+    Launches the TUI (Terminal User Interface) mode.
+    
+    Arguments:
+        configuration (Config): Configuration instance for the application.
+        controller (Controller): Controller part of the MVC model.
+    """
+    try:
+        from ui.tui.main_view import TUI
+        tui = TUI(controller)
+        tui.run()  # Use the method provided by TUI to start the interface
     except Exception as e:
         logger.error(e)
 
@@ -299,6 +338,7 @@ def main():
     """Main function for the app. Handles creation and destruction of every element of the application."""
 
     config_data = check_args(sys.argv)
+    node = init_node(config_data['ros_version']) # Initialize the ROS node
     app_configuration = Config(config_data['config'][0])
     if not config_data['script']:
         if app_configuration.task not in ['follow_lane', 'follow_lane_traffic']:
@@ -322,7 +362,12 @@ def main():
         pilot.daemon = True
         pilot.start()
         logger.info('Executing app')
-        main_win(app_configuration, controller)
+        # Use GUI or TUI based on the option selected.
+        if config_data['gui']:
+            main_win(app_configuration, controller)
+        elif config_data['tui']:
+            main_tui(app_configuration, controller)
+        # main_win(app_configuration, controller)
         logger.info('closing all processes...')
         traffic_manager.destroy()
         pilot.kill_event.set()
