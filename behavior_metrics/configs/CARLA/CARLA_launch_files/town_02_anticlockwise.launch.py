@@ -2,6 +2,11 @@ import os
 import launch
 from ament_index_python.packages import get_package_share_directory
 
+from utils.logger import logger
+
+logger.info('Loading town_02_anticlockwise.launch.py')  # erase this line
+print('Loading town_02_anticlockwise.launch.py')  # erase this line 
+
 def generate_launch_description():
     ld = launch.LaunchDescription([
         # Declare launch arguments
@@ -57,6 +62,7 @@ def generate_launch_description():
             name='QUALITY',
             value=launch.substitutions.LaunchConfiguration('quality')
         ),
+        
 
         # Log information for debugging purposes
         launch.actions.LogInfo(
