@@ -119,3 +119,4 @@ dmypy.json
 
 # Custom directories
 bags_analysis/
+behavior_metrics/
