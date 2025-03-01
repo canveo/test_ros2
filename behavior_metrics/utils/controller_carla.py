@@ -16,18 +16,6 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
 import os
-
-if os.environ.get('ROS_VERSION', 'ros1') == 'ros2':
-    # Create a dummy rosbag module for ROS2.
-    class DummyRosbag:
-        def __getattr__(self, name):
-            def dummy_function(*args, **kwargs):
-                print("rosbag dummy: called", name)
-            return dummy_function
-    rosbag = DummyRosbag()
-else:
-    import rosbag
-
 import shlex
 import subprocess
 import threading
@@ -39,31 +27,49 @@ import json
 import math
 from utils.logger import logger
 
-# Conditionally import ROS libraries based on an environment variable.
-if os.environ.get('ROS_VERSION', 'ros1') == 'ros2':
+try:
+    import carla
+except ModuleNotFoundError:
+    logger.error('CARLA is not supported')
+
+# Selección de ROS 1 o ROS 2
+ros_version = os.environ.get('ROS_VERSION', 'ros1')
+
+if ros_version == 'ros2':
     import rclpy
-    # Create a dummy wrapper for rospy functions that are used in this file.
+    from rclpy.node import Node
+
+    class DummyRosbag:
+        def __getattr__(self, name):
+            def dummy_function(*args, **kwargs):
+                print(f"rosbag dummy: called {name}")
+            return dummy_function
+    rosbag = DummyRosbag()
+
     class DummyRospy:
         @staticmethod
         def init_node(name):
             rclpy.init(args=None)
+
         @staticmethod
         def loginfo(msg):
             print(msg)
+
         @staticmethod
         def get_time():
             return time.time()
+
         @staticmethod
         def is_shutdown():
             return False
+
     rospy = DummyRospy()
+
 else:
     import rospy
+    import rosbag
 
-try:
-    import carla
-except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported')
+
 from std_srvs.srv import Empty
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -201,6 +207,7 @@ class ControllerCarla:
         self.world = client.get_world()
         time.sleep(5) # takes a few second for the correct map to finish loading
         self.carla_map = self.world.get_map()
+        logger.info(self.carla_map)
         while len(self.world.get_actors().filter('vehicle.*')) == 0:
             logger.info("Waiting for vehicles! >> 2")
             time.sleep(1)

@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, TextSubstitution
 from launch_ros.actions import Node
 
 def generate_launch_description():
@@ -38,7 +38,7 @@ def generate_launch_description():
             'host': LaunchConfiguration('host'),
             'port': LaunchConfiguration('port'),
             'timeout': LaunchConfiguration('timeout'),
-            'town': LaunchConfiguration('town') + '_Opt',
+            'town': [LaunchConfiguration('town'), TextSubstitution(text='_Opt')],  # 🔹 Corrección aquí
             'passive': LaunchConfiguration('passive'),
             'synchronous_mode_wait_for_vehicle_control_command': LaunchConfiguration('synchronous_mode_wait_for_vehicle_control_command'),
             'fixed_delta_seconds': LaunchConfiguration('fixed_delta_seconds'),
