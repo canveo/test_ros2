@@ -120,3 +120,4 @@ dmypy.json
 # Custom directories
 bags_analysis/
 behavior_metrics/
+behavior_metrics/carla-birdeye-view/
