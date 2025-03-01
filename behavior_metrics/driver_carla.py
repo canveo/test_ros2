@@ -114,7 +114,8 @@ def init_node(ros_version):
     elif ros_version == 'ros2':
         import rclpy
         rclpy.init()
-        node = rclpy.create_node('my_ros2_node')
+        node = rclpy.create_node('my_ros2_node')  
+        logger.info('ROS2 node initialized')   # erase this line
         return node
 
 def main_win(configuration, controller):
