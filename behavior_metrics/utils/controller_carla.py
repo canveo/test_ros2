@@ -30,7 +30,7 @@ from utils.logger import logger
 try:
     import carla
 except ModuleNotFoundError:
-    logger.error('CARLA is not supported')
+    logger.error('CARLA is not supported primero') # erase this line
 
 # Selección de ROS 1 o ROS 2
 ros_version = os.environ.get('ROS_VERSION', 'ros1')
@@ -81,7 +81,7 @@ try:
     from carla_msgs.msg import CarlaLaneInvasionEvent
     from carla_msgs.msg import CarlaCollisionEvent
 except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported')
+    logger.error('CARLA is not supported segundo') # erase this line
 from PIL import Image
 __author__ = 'sergiopaniego'
 __contributors__ = []
@@ -117,7 +117,7 @@ class ControllerCarla:
         while len(self.world.get_actors().filter('vehicle.*')) == 0:
             logger.info("Waiting for vehicles! >> 1")
             time.sleep(1)
-        ego_vehicle_role_name = "ego_vehicle"
+        ego_vehicle_role_name = "ego_vehicle" 
         self.ego_vehicle = None
         while self.ego_vehicle is None:
             for vehicle in self.world.get_actors().filter('vehicle.*'):
@@ -162,7 +162,7 @@ from utils.logger import logger
 try:
     import carla
 except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported')
+    logger.error('CARLA is not supported  tercero') # erase this line
 from std_srvs.srv import Empty
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -174,7 +174,7 @@ try:
     from carla_msgs.msg import CarlaLaneInvasionEvent
     from carla_msgs.msg import CarlaCollisionEvent
 except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported')
+    logger.error('CARLA is not supported CUARTO') # erase this line
 from PIL import Image
 __author__ = 'sergiopaniego'
 __contributors__ = []
