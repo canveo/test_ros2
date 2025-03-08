@@ -67,13 +67,16 @@ def check_args(argv):
                         action='store_true',
                         help='{}Run Behavior Metrics F1 with random spawning{}'.format(
                             Colors.OKBLUE, Colors.ENDC))
-    
-    parser.add_argument('--ros_version', type=str, choices=['ros1', 'ros2'], required=True,
-                        help='Select the ROS version to use: "ros1" for ROS1 or "ros2" for ROS2.')
 
     args = parser.parse_args()
+    
+    # get ROS version from environment variable
+    ros_version = os.environ.get('ROS_VERSION', '2')  # Default is ROS 2
+    if ros_version not in ['1', '2']:
+        logger.error('Invalid ROS_VERSION environment variable. Must be "1" or "2". Killing program...')
+        sys.exit(-1)
 
-    config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False, 'ros_version': args.ros_version}
+    config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False, 'ros_version': int(ros_version)}
     if args.config:
         config_data['config'] = []
         for config_file in args.config:
@@ -107,16 +110,19 @@ def init_node(ros_version):
         For ROS1: returns None (as rospy manages the node globally).
         For ROS2: returns the created node.
     """
-    if ros_version == 'ros1':
+    if ros_version == 1:
         import rospy
         rospy.init_node('my_ros1_node')
-        return None  # In rospy, the node is managed globally
-    elif ros_version == 'ros2':
+        return None  # rospy maneja la instancia globalmente
+    elif ros_version == 2:
         import rclpy
         rclpy.init()
         node = rclpy.create_node('my_ros2_node')  
-        logger.info('ROS2 node initialized')   # erase this line
+        logger.info('ROS2 node initialized')
         return node
+    else:
+        logger.error(f"Unsupported ROS version: {ros_version}")
+        sys.exit(-1)
 
 def main_win(configuration, controller):
     """shows the Qt main window of the application
@@ -358,6 +364,7 @@ def main():
         if hasattr(app_configuration, 'experiment_model'):
             experiment_model = app_configuration.experiment_model
             pilot = PilotCarla(app_configuration, controller, app_configuration.brain_path, experiment_model=experiment_model)
+            logger.info("launch control")  # erase this line
         else:
             pilot = PilotCarla(app_configuration, controller, app_configuration.brain_path)
         pilot.daemon = True

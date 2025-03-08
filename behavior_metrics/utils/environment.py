@@ -69,18 +69,15 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
             else:
                 spawn_point = None
             with open("/tmp/.carlalaunch_stdout.log", "w") as out, open("/tmp/.carlalaunch_stderr.log", "w") as err:
-                ros_version = os.environ.get('ROS_VERSION', 'ros1')
-                if ros_version == 'ros2':
+                ros_version = os.environ.get('ROS_VERSION', '2')
+                if ros_version == '2':
                     # In ROS2, quality value parser is passed environment variable
                     quality = os.environ.get('QUALITY', 'Low')
                     if quality == 'Low':
-                        # subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-RenderOffScreen", "-quality-level=Low"], stdout=out, stderr=err) 
-                        subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-prefernvidia"], stdout=out, stderr=err) # erase this line
-
-                        logger.info("CarlaUE4.sh -RenderOffScreen -quality-level=Low") # erase this line 
+                        subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-RenderOffScreen", "-quality-level=Low"], stdout=out, stderr=err) 
+                        # subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-prefernvidia"], stdout=out, stderr=err) # erase this line
                     else:
                         subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-RenderOffScreen"], stdout=out, stderr=err)
-                        logger.info("Quality (borrar): {}".format(quality)) 
                 else:
                     # In ros1, quality value parser is passed as XML argument
                     tree = ET.parse(ROOT_PATH + '/' + launch_file)
@@ -91,7 +88,6 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
                     elif quality.attrib['default'] == 'Low':
                         subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-RenderOffScreen", "-quality-level=Low"], stdout=out, stderr=err)                
                     #subprocess.Popen(["/home/jderobot/Documents/Projects/carla_simulator_0_9_13/CarlaUE4.sh", "-RenderOffScreen", "-quality-level=Low"], stdout=out, stderr=err)
-            logger.info("SimulatorEnv: launching simulator server. >> 1")
             time.sleep(5)
             with open("/tmp/.roslaunch_stdout.log", "w") as out, open("/tmp/.roslaunch_stderr.log", "w") as err:
                 if random_spawn_point or (spawn_point is not None and town is not None):
@@ -101,25 +97,22 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
                     # child = subprocess.Popen(["roslaunch", ROOT_PATH + '/' + launch_file], stdout=out, stderr=err)
                     launch_file_path = ROOT_PATH + '/' + launch_file
                     
-                if os.environ.get('ROS_VERSION', 'ros1') == 'ros2':
+                if os.environ.get('ROS_VERSION', '1') == '2':
+                    launch_path = os.path.join(ROOT_PATH, launch_file)
                     # ros_cmd = ["ros2", "launch", ROOT_PATH, launch_file]
-                    ros_cmd = ['ros2', 'launch', 'carla_ros_bridge', 'carla_ros_bridge_with_example_ego_vehicle.launch.py']
-                    # ros_cmd = ['xclock']
-                    logger.info(f"ROOT {ROOT_PATH}")
-                    logger.info(f"Ejecutando ROS 2 Launch: {' '.join(ros_cmd)}")
-                    logger.info("ros2 is launch")  # erase this line
+                    ros_cmd = ['ros2', 'launch', launch_path]
                 else:
                     ros_cmd = ["roslaunch", launch_file_path]
-                child = subprocess.Popen(ros_cmd)  #, stdout=out, stderr=err)
+                child = subprocess.Popen(ros_cmd, stdout=out, stderr=err)
         else:
             with open("/tmp/.roslaunch_stdout.log", "w") as out, open("/tmp/.roslaunch_stderr.log", "w") as err:
-                if os.environ.get('ROS_VERSION', 'ros1') == 'ros2':
+                if os.environ.get('ROS_VERSION', '1') == '2':
+                    launch_path = os.path.join(ROOT_PATH, launch_file)
+                    ros_cmd = ['ros2', 'launch', launch_path]
                     # ros_cmd = ["ros2", "launch", launch_file]
-                    logger.info("SimulatorEnv: launching simulator server. >> 2 clock")  # erase this line
                 else:
                     ros_cmd = ["roslaunch", launch_file]
                 child = subprocess.Popen(ros_cmd, stdout=out, stderr=err)
-        logger.info("SimulatorEnv: carlaSimulator launched.") # erase this line
     except OSError as oe:
         logger.error("SimulatorEnv: exception raised launching simulator server. {}".format(oe))
         close_ros_and_simulators()
