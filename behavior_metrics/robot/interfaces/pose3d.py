@@ -1,8 +1,14 @@
-import rospy
+import os
+# import rospy
 from nav_msgs.msg import Odometry
 import threading
 from math import asin, atan2, pi
 
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+else:
+    import rospy
 
 def quat2Yaw(qw, qx, qy, qz):
     '''
@@ -154,14 +160,26 @@ class ListenerPose3d:
         Stops (Unregisters) the client.
 
         '''
-        self.sub.unregister()
+        if ros_version == '2':
+            node = rclpy.create_node("ListenerPose3d")
+            if self.sub is not None and node is not None:                
+                node.destroy_subscription(self.sub)
+                self.sub = None
+        else:
+            if self.sub is not None:
+                self.sub.unregister()
+                self.sub = None
 
     def start(self):
         '''
         Starts (Subscribes) the client.
 
         '''
-        self.sub = rospy.Subscriber(self.topic, Odometry, self.__callback)
+        if ros_version == '2':
+            node = rclpy.create_node("ListenerPose3d")
+            self.sub = node.create_subscription(Odometry, self.topic, self.__callback, 1)
+        else:
+            self.sub = rospy.Subscriber(self.topic, Odometry, self.__callback)
 
     def getPose3d(self):
         '''
