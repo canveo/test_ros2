@@ -1,8 +1,15 @@
-import rospy
+import os
+# import rospy
 from sensor_msgs.msg import LaserScan
 import threading
 from math import pi as PI
 from jderobotTypes import LaserData
+
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy    
+else:    
+    import rospy
 
 
 def laserScan2LaserData(scan):
@@ -76,7 +83,10 @@ class ListenerLaser:
         Starts (Subscribes) the client.
 
         '''
-        self.sub = rospy.Subscriber(self.topic, LaserScan, self.__callback)
+        if ros_version == '2':
+            self.create_subscription(LaserScan, self.topic, self.__callback, 1)
+        else:
+            self.sub = rospy.Subscriber(self.topic, LaserScan, self.__callback)
 
     def getLaserData(self):
         '''

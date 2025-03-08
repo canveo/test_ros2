@@ -12,33 +12,17 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
-import os
-import sys 
-import types
-import time
-
-if os.environ.get('ROS_VERSION', 'ros1') == 'ros2':
-    # Create a dummy rospy module for ROS2.
-    dummy_rospy = types.ModuleType("rospy")
-    dummy_rospy.init_node = lambda name, **kwargs: None
-    dummy_rospy.loginfo = lambda msg: print("[rospy loginfo]:", msg)
-    dummy_rospy.get_time = lambda: time.time()
-    dummy_rospy.is_shutdown = lambda: False
-    # If any submodules are needed, you can create dummy attributes as well.
-    dummy_core = types.ModuleType("rospy.core")
-    dummy_core.Log = None  # Dummy value for Log (or you can define a dummy class)
-    dummy_rospy.core = dummy_core
-    sys.modules["rospy"] = dummy_rospy
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 import time
+import os
 # import rosbag
 import re
 
-from bagpy import bagreader
+# from bagpy import bagreader
 from utils.logger import logger
 
 import pandas as pd

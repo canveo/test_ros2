@@ -1,7 +1,13 @@
-import rospy
+import os
+# import rospy
 from std_msgs.msg import Float32
 import threading
 
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+else:        
+    import rospy    
 
 def speedometer2Speedometer(speedometer):
 
@@ -71,7 +77,11 @@ class ListenerSpeedometer:
         Starts (Subscribes) the client.
 
         '''
-        self.sub = rospy.Subscriber(self.topic, Float32, self.__callback)
+        if ros_version == '2':
+            node = rclpy.create_node("ListenerSpeedometer")
+            self.sub = node.create_subscription(Float32, self.topic, self.__callback, 1)
+        else:
+            self.sub = rospy.Subscriber(self.topic, Float32, self.__callback)
 
     def getSpeedometer(self):
         '''

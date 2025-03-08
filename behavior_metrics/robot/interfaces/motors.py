@@ -1,8 +1,16 @@
-import rospy
+# import rospy
+import os
 from utils.logger import logger
 from geometry_msgs.msg import Twist
 import threading
 from .threadPublisher import ThreadPublisher
+
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+    from rclpy.node import Node
+else:
+    import rospy    
 
 try:
     from carla_msgs.msg import CarlaEgoVehicleControl
@@ -89,8 +97,12 @@ class PublisherMotors:
         self.w = w
         self.topic = topic
         self.data = CMDVel()
-        self.pub = rospy.Publisher(self.topic, Twist, queue_size=1)
-        rospy.init_node("FollowLineF1")
+        if ros_version == '2':
+            rclpy.init()    
+            self.pub = rclpy.create_node("FollowLineF1").create_publisher(Twist, self.topic, 1)
+        else:   
+            self.pub = rospy.Publisher(self.topic, Twist, queue_size=1)
+            rospy.init_node("FollowLineF1")
         self.lock = threading.Lock()
         self.kill_event = threading.Event()
         self.thread = ThreadPublisher(self, self.kill_event)
@@ -170,8 +182,12 @@ class PublisherCARLAMotors:
         self.w = w
         self.topic = topic
         self.data = CARLAVel()
-        self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=1)
-        rospy.init_node("CARLAMotors")
+        if ros_version == '2':
+            node = rclpy.create_node("CARLAMotors")
+            self.pub = node.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
+        else:  
+            self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=1)
+            rospy.init_node("CARLAMotors")
         self.lock = threading.Lock()
         self.kill_event = threading.Event()
         self.thread = ThreadPublisher(self, self.kill_event)
@@ -186,7 +202,15 @@ class PublisherCARLAMotors:
 
     def stop(self):
         self.kill_event.set()
-        self.pub.unregister()
+        if ros_version == '2':
+            node = rclpy.create_node("ListenerMotors")
+            if self.pub is not None and node is not None:                
+                node.destroy_publisher(self.pub)
+                self.pub = None
+        else:
+            if self.pub is not None:
+                self.pub.unregister()
+                self.pub = None
 
     def start(self):
 

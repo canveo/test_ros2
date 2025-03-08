@@ -1,6 +1,12 @@
+import os
 import threading
 import numpy as np
-import rospy
+# import rospy
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+else:
+    import rospy
 
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image as ImageROS
@@ -67,10 +73,23 @@ class ListenerCamera:
         self.lock.release()
 
     def stop(self):
-        self.sub.unregister()
+        if ros_version == '2':
+            node = rclpy.create_node("ListenerCamera")
+            if self.sub is not None and node is not None:                
+                node.destroy_subscription(self.sub)
+                self.sub = None
+        else:
+            if self.sub is not None:
+                self.sub.unregister()
+                self.sub = None
 
     def start(self):
-        self.sub = rospy.Subscriber(self.topic, ImageROS, self.__callback)
+        if ros_version == '2':
+            # rclpy.init()
+            node = rclpy.create_node("ListenerCamera")
+            self.sub = node.create_subscription(ImageROS, self.topic, self.__callback, 1)
+        else:
+            self.sub = rospy.Subscriber(self.topic, ImageROS, self.__callback)
 
     def getImage(self):
         self.lock.acquire()

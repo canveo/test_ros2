@@ -14,7 +14,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 import threading
 import time
-import rospy
+# import rospy
 import subprocess
 import os
 
@@ -24,6 +24,13 @@ from robot.actuators import Actuators
 from robot.sensors import Sensors
 from utils.logger import logger
 from utils.constants import MIN_EXPERIMENT_PERCENTAGE_COMPLETED, ROOT_PATH
+
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+else:    
+    import rospy
+
 from rosgraph_msgs.msg import Clock
 from carla_msgs.msg import CarlaControl
 
@@ -32,6 +39,8 @@ import numpy as np
 __author__ = 'fqez'
 __contributors__ = []
 __license__ = 'GPLv3'
+
+
 
 
 class PilotCarla(threading.Thread):
@@ -124,8 +133,13 @@ class PilotCarla(threading.Thread):
         self.real_time_factors = []
         self.sensors.get_camera('camera_0').total_frames = 0
         self.pilot_start_time = time.time()
-
-        control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
+        
+        if ros_version == '2':
+            node = rclpy.create_node("PilotCarla")
+            control_pub = node.create_publisher(CarlaControl, '/carla/control', 1)
+        else:
+            control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)  
+            
         control_command = CarlaControl()
         control_command.command = 1 # PAUSE
         control_pub.publish(control_command)
@@ -134,14 +148,29 @@ class PilotCarla(threading.Thread):
         while not self.kill_event.is_set():
             if not self.stop_event.is_set():
                 if self.waypoint_publisher is None and self.waypoint_publisher_path is not None:
-                    self.waypoint_publisher = subprocess.Popen(["roslaunch", ROOT_PATH + '/' + self.waypoint_publisher_path])
-                control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
-                control_command = CarlaControl()
-                if self.async_mode:
-                    control_command.command = 2 # STEP_ONCE
+                    if ros_version == '2':
+                        self.waypoint_publisher = subprocess.Popen(["ros2", "launch", ROOT_PATH + '/' + self.waypoint_publisher_path])
+                    else:
+                        self.waypoint_publisher = subprocess.Popen(["roslaunch", ROOT_PATH + '/' + self.waypoint_publisher_path])
+                
+                if ros_version == '2':
+                    if not hasattr(self, 'control_pub'):
+                        control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1)
+                    control_command = CarlaControl()
+                    if self.async_mode:
+                        control_command.command = 2 # STEP_ONCE
+                    else:
+                        control_command.command = 0 # PLAY
+                    control_pub.publish(control_command)            
                 else:
-                    control_command.command = 0 # PLAY
-                control_pub.publish(control_command)
+                    control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
+                    control_command = CarlaControl()
+                        
+                    if self.async_mode:
+                        control_command.command = 2 # STEP_ONCE
+                    else:
+                        control_command.command = 0 # PLAY
+                    control_pub.publish(control_command)
 
                 start_time = datetime.now()
                 start_time_ros = self.ros_clock_time
@@ -216,4 +245,9 @@ class PilotCarla(threading.Thread):
         self.ros_clock_time = clock_data.clock.to_sec()
 
     def track_stats(self):
-        self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)
+        if ros_version == '2':
+            node = rclpy.create_node("PilotCarla")
+            
+            self.clock_subscriber = node.create_subscription(Clock, '/clock', self.clock_callback, 1)
+        else:
+            self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)

@@ -49,7 +49,7 @@ Behaviors:
     Simulation:
         # World: configs/CARLA/CARLA_launch_files/town_02_anticlockwise.launch
         # World: configs/CARLA/CARLA_launch_files/ros2_town02.launch.py
-        World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py'
+        World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py
         RandomSpawnPoint: False
     Dataset:
         In: '/tmp/my_bag.bag'
