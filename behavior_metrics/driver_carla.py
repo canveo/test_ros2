@@ -137,15 +137,15 @@ def main_win(configuration, controller):
 
         app = QApplication(sys.argv)
         main_window = ParentWindow()
-
+        
         views_controller = ViewsController(main_window, configuration, controller)
         views_controller.show_main_view(True)
-
+        
         main_window.show()
 
         app.exec_()
     except Exception as e:
-        logger.error(e)
+        logger.error(f"Error in main_win: {e}")
         
 def main_tui(configuration, controller):
     """
@@ -347,6 +347,7 @@ def main():
     config_data = check_args(sys.argv)
     node = init_node(config_data['ros_version']) # Initialize the ROS node
     app_configuration = Config(config_data['config'][0])
+    logger.info(f"config data {config_data['config'][0]}")
     if not config_data['script']:
         if app_configuration.task not in ['follow_lane', 'follow_lane_traffic']:
             logger.info('Selected task does not support --gui. Try use --script instead. Killing program...')

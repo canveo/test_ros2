@@ -212,6 +212,13 @@ def close_ros_and_simulators(close_ros_resources=True):
             logger.debug("SimulatorEnv:rosout killed.")
         except subprocess.CalledProcessError as ce:
             logger.error("SimulatorEnv: exception raised executing killall command for rosout {}".format(ce))
+    
+    if ps_output.count('carla_manual_control') > 0:
+        try:
+            subprocess.check_call(["killall", "-9", "carla_manual_control"])
+            logger.debug("SimulatorEnv: carla_manual_control killed.")
+        except subprocess.CalledProcessError as ce:
+            logger.error("SimulatorEnv: exception raised executing killall command for carla_manual_control {}".format(ce))
 
 
 def is_gzclient_open():
