@@ -15,7 +15,14 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 import os
 
-import rospy
+# import rospy
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+    from rclpy.node import Node
+else:
+    import rospy    
+
 from PyQt5.QtCore import (QPropertyAnimation, QSequentialAnimationGroup, QSize,
                           Qt)
 from PyQt5.QtGui import QColor, QPalette, QPixmap
@@ -30,6 +37,8 @@ from ui.gui.views.logo import Logo
 from ui.gui.views.social import SocialMedia
 from utils import constants, environment, controller_carla
 
+from utils.logger import logger
+
 __author__ = 'fqez'
 __contributors__ = []
 __license__ = 'GPLv3'
@@ -40,7 +49,7 @@ brains_path = constants.ROOT_PATH + '/brains/'
 """ TODO:   put button for showing logs? """
 
 
-class TopicsPopup(QWidget):
+class TopicsPopup(QWidget, Node):
     """This class will show a popup window to select topics to be recorded in a rosbag
 
     Attributes:
@@ -49,6 +58,7 @@ class TopicsPopup(QWidget):
     def __init__(self):
         """Construtctor of the class"""
         QWidget.__init__(self)
+        super().__init__('topics_popup')
         self.setFixedSize(800, 600)
         self.setWindowTitle("Select your topics")
         self.active_topics = []
@@ -76,7 +86,13 @@ class TopicsPopup(QWidget):
 
     def fill_topics(self):
         """Fill the active_topics with all the topics selected by the user"""
-        topics = rospy.get_published_topics()
+        # topics = rospy.get_published_topics()
+        if ros_version == '2':
+            topics = self.get_topic_names_and_types()
+            logger.info('Topics: ' + str(topics))
+        else:
+            topics = rospy.get_published_topics()
+            
         for idx, topic in enumerate(topics):
             cont = QFrame()
             ll = QHBoxLayout()

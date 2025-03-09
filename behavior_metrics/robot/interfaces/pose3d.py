@@ -7,6 +7,7 @@ from math import asin, atan2, pi
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
+    from rclpy.node import Node
 else:
     import rospy
 
@@ -122,7 +123,7 @@ class Pose3d ():
         return s
 
 
-class ListenerPose3d:
+class ListenerPose3d(Node):
     '''
         ROS Pose3D Subscriber. Pose3D Client to Receive pose3d from ROS nodes.
     '''
@@ -134,6 +135,7 @@ class ListenerPose3d:
         @type topic: String
 
         '''
+        super().__init__('ListenerPose3d')
         self.topic = topic
         self.data = Pose3d()
         self.sub = None
@@ -161,9 +163,8 @@ class ListenerPose3d:
 
         '''
         if ros_version == '2':
-            node = rclpy.create_node("ListenerPose3d")
-            if self.sub is not None and node is not None:                
-                node.destroy_subscription(self.sub)
+            if self.sub is not None:                
+                self.destroy_subscription(self.sub)
                 self.sub = None
         else:
             if self.sub is not None:
@@ -176,8 +177,7 @@ class ListenerPose3d:
 
         '''
         if ros_version == '2':
-            node = rclpy.create_node("ListenerPose3d")
-            self.sub = node.create_subscription(Odometry, self.topic, self.__callback, 1)
+            self.sub = self.create_subscription(Odometry, self.topic, self.__callback, 1)
         else:
             self.sub = rospy.Subscriber(self.topic, Odometry, self.__callback)
 

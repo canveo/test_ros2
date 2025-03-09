@@ -87,7 +87,7 @@ class CARLAVel():
 
 
 
-class PublisherMotors:
+class PublisherMotors(Node):
 
     def __init__(self, topic, maxV, maxW, v, w):
 
@@ -98,8 +98,8 @@ class PublisherMotors:
         self.topic = topic
         self.data = CMDVel()
         if ros_version == '2':
-            rclpy.init()    
-            self.pub = rclpy.create_node("FollowLineF1").create_publisher(Twist, self.topic, 1)
+            # rclpy.init()    
+            self.pub = self.create_publisher(Twist, self.topic, 1)
         else:   
             self.pub = rospy.Publisher(self.topic, Twist, queue_size=1)
             rospy.init_node("FollowLineF1")
@@ -172,10 +172,10 @@ class PublisherMotors:
         self.lock.release()
 
 
-class PublisherCARLAMotors:
+class PublisherCARLAMotors(Node):
 
     def __init__(self, topic, maxV, maxW, v, w):
-
+        super().__init__('PublisherCARLAMotors')
         self.maxW = maxW
         self.maxV = maxV
         self.v = v
@@ -183,8 +183,7 @@ class PublisherCARLAMotors:
         self.topic = topic
         self.data = CARLAVel()
         if ros_version == '2':
-            node = rclpy.create_node("CARLAMotors")
-            self.pub = node.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
+            self.pub = self.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
         else:  
             self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=1)
             rospy.init_node("CARLAMotors")
@@ -203,9 +202,8 @@ class PublisherCARLAMotors:
     def stop(self):
         self.kill_event.set()
         if ros_version == '2':
-            node = rclpy.create_node("ListenerMotors")
-            if self.pub is not None and node is not None:                
-                node.destroy_publisher(self.pub)
+            if self.pub is not None:                
+                self.destroy_publisher(self.pub)
                 self.pub = None
         else:
             if self.pub is not None:

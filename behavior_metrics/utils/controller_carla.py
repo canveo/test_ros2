@@ -60,7 +60,7 @@ __contributors__ = []
 __license__ = 'GPLv3'
 
 
-class ControllerCarla:
+class ControllerCarla(Node):
     """This class defines the controller of the architecture, responsible of the communication between the logic (model)
     and the user interface (view).
 
@@ -73,7 +73,8 @@ class ControllerCarla:
 
     def __init__(self):
         """ Constructor of the class. """
-        pass
+        super().__init__('controller_carla')
+        # pass        
         self.__data_loc = threading.Lock()
         self.__pose_loc = threading.Lock()
         self.data = {}
@@ -179,28 +180,59 @@ class ControllerCarla:
             dataset_name {str} -- Path of the resulting bag file
         """
 
-        if not self.recording:
-            logger.info("Recording bag at: {}".format(dataset_name))
-            self.recording = True
-            command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
-            command = shlex.split(command)
-            with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
-                self.rosbag_proc = subprocess.Popen(command, stdout=out, stderr=err)
-        else:
+        # if not self.recording:
+        #     logger.info("Recording bag at: {}".format(dataset_name))
+        #     self.recording = True
+        #     command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
+        #     command = shlex.split(command)
+        #     with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        #         self.rosbag_proc = subprocess.Popen(command, stdout=out, stderr=err)
+        # else:
+        #     logger.info("Rosbag already recording")
+        #     self.stop_record()
+        if self.recording:
             logger.info("Rosbag already recording")
             self.stop_record()
+            return
+        
+        self.recording = True
+        
+        if ros_version == "2":
+            command = "ros2 bag record -o " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
+        else:
+            command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
+            
+        logger.info("Recording bag at: {}".format(dataset_name))
+        cmd_split = shlex.split(command)
+        with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+            self.rosbag_proc = subprocess.Popen(cmd_split, stdout=out, stderr=err)
 
     def stop_record(self):
         """Stop the rosbag recording process."""
-        if self.rosbag_proc and self.recording:
-            logger.info("Stopping bag recording")
-            self.recording = False
-            command = "rosnode kill /behav_bag"
-            command = shlex.split(command)
-            with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
-                subprocess.Popen(command, stdout=out, stderr=err)
-        else:
+        # if self.rosbag_proc and self.recording:
+        #     logger.info("Stopping bag recording")
+        #     self.recording = False
+        #     command = "rosnode kill /behav_bag"
+        #     command = shlex.split(command)
+        #     with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        #         subprocess.Popen(command, stdout=out, stderr=err)
+        # else:
+        #     logger.info("No bag recording")
+        if not self.recording or not self.rosbag_proc:
             logger.info("No bag recording")
+            return
+        
+        if ros_version == "2":
+            self.rosbag_proc.terminate()
+            self.rosbag_proc.wait()
+            logger.info("Stopped bag recording")
+        else:
+            command = "rosnode kill /behav_bag"
+            command_split = shlex.split(command)
+            with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+                subprocess.Popen(command_split, stdout=out, stderr=err)
+        self.recording = False  
+        self.rosbag_proc = None
 
     def reload_brain(self, brain, model=None):
         """Helper function to reload the current brain from the GUI.
@@ -303,7 +335,11 @@ class ControllerCarla:
             '/clock',
             ]
 
-        command = "rosbag record -O " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
+        if ros_version == "2":
+            command = "ros2 bag record -o " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
+        else:
+            command = "rosbag record -O " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
+        
         command = shlex.split(command)
         with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
             self.proc = subprocess.Popen(command, stdout=out, stderr=err)
@@ -326,8 +362,11 @@ class ControllerCarla:
         else:
             first_images = []
             last_images = []
-
-        command = "rosnode kill /behav_metrics_bag"
+        
+        if ros_version == "2":
+            command = "ros2 node kill /behav_metrics_bag"
+        else:
+            command = "rosnode kill /behav_metrics_bag"
         command = shlex.split(command)
         with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
             subprocess.Popen(command, stdout=out, stderr=err)
