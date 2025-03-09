@@ -6,6 +6,7 @@ import threading
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
+    from rclpy.node import Node
 else:        
     import rospy    
 
@@ -32,7 +33,7 @@ class Speedometer():
         return s
 
 
-class ListenerSpeedometer:
+class ListenerSpeedometer(Node):
     '''
         ROS Speedometer Subscriber. Speedometer Client to Receive speedometer from ROS nodes.
     '''
@@ -44,6 +45,7 @@ class ListenerSpeedometer:
         @type topic: String
 
         '''
+        super().__init__('ListenerSpeedometer')
         self.topic = topic
         self.data = Speedometer()
         self.sub = None
@@ -70,7 +72,14 @@ class ListenerSpeedometer:
         Stops (Unregisters) the client.
 
         '''
-        self.sub.unregister()
+        if ros_version == '2':
+            if self.sub is not None:                
+                self.destroy_subscription(self.sub)
+                self.sub = None
+        else:
+            if self.sub is not None:
+                self.sub.unregister()
+                self.sub = None
 
     def start(self):
         '''
@@ -78,8 +87,7 @@ class ListenerSpeedometer:
 
         '''
         if ros_version == '2':
-            node = rclpy.create_node("ListenerSpeedometer")
-            self.sub = node.create_subscription(Float32, self.topic, self.__callback, 1)
+            self.sub = self.create_subscription(Float32, self.topic, self.__callback, 1)
         else:
             self.sub = rospy.Subscriber(self.topic, Float32, self.__callback)
 

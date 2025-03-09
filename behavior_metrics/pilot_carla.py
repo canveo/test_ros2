@@ -28,6 +28,7 @@ from utils.constants import MIN_EXPERIMENT_PERCENTAGE_COMPLETED, ROOT_PATH
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
+    from rclpy.node import Node
 else:    
     import rospy
 
@@ -43,7 +44,7 @@ __license__ = 'GPLv3'
 
 
 
-class PilotCarla(threading.Thread):
+class PilotCarla(threading.Thread, Node):
     """This class handles the robot and its brain.
 
     This class called PilotCarla that handles the initialization of the robot sensors and actuators and the
@@ -65,6 +66,8 @@ class PilotCarla(threading.Thread):
             configuration {utils.configuration.Config} -- Configuration instance of the application
             controller {utils.controller.Controller} -- Controller instance of the MVC of the application
         """
+        super(PilotCarla, self).__init__()
+        Node.__init__(self, 'PilotCarla')
 
         self.controller = controller
         self.controller.set_pilot(self)
@@ -135,8 +138,7 @@ class PilotCarla(threading.Thread):
         self.pilot_start_time = time.time()
         
         if ros_version == '2':
-            node = rclpy.create_node("PilotCarla")
-            control_pub = node.create_publisher(CarlaControl, '/carla/control', 1)
+            control_pub = self.create_publisher(CarlaControl, '/carla/control', 1)
         else:
             control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)  
             
@@ -245,9 +247,7 @@ class PilotCarla(threading.Thread):
         self.ros_clock_time = clock_data.clock.to_sec()
 
     def track_stats(self):
-        if ros_version == '2':
-            node = rclpy.create_node("PilotCarla")
-            
-            self.clock_subscriber = node.create_subscription(Clock, '/clock', self.clock_callback, 1)
+        if ros_version == '2':      
+            self.clock_subscriber = self.create_subscription(Clock, '/clock', self.clock_callback, 1)
         else:
             self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)

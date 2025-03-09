@@ -5,6 +5,7 @@ import numpy as np
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
+    from rclpy.node import Node
 else:
     import rospy
 
@@ -52,9 +53,10 @@ class Image:
         return s
 
 
-class ListenerCamera:
+class ListenerCamera(Node):
 
     def __init__(self, topic):
+        super().__init__('ListenerCamera')
         self.topic = topic
         self.data = Image()
         self.sub = None
@@ -74,9 +76,8 @@ class ListenerCamera:
 
     def stop(self):
         if ros_version == '2':
-            node = rclpy.create_node("ListenerCamera")
-            if self.sub is not None and node is not None:                
-                node.destroy_subscription(self.sub)
+            if self.sub is not None:                
+                self.destroy_subscription(self.sub)
                 self.sub = None
         else:
             if self.sub is not None:
@@ -85,9 +86,7 @@ class ListenerCamera:
 
     def start(self):
         if ros_version == '2':
-            # rclpy.init()
-            node = rclpy.create_node("ListenerCamera")
-            self.sub = node.create_subscription(ImageROS, self.topic, self.__callback, 1)
+            self.sub = self.create_subscription(ImageROS, self.topic, self.__callback, 1)
         else:
             self.sub = rospy.Subscriber(self.topic, ImageROS, self.__callback)
 
