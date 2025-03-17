@@ -15,8 +15,12 @@ def speedometer2Speedometer(speedometer):
     speed = Speedometer()
 
     speed.data = speedometer.data
-    now = rospy.get_rostime()
-    speed.timeStamp = now.secs + (now.nsecs * 1e-9)
+    if ros_version == '2':
+        now = rclpy.clock.Clock().now().to_msg()
+        speed.timeStamp = now.sec + (now.nanosec * 1e-9)
+    else:
+        now = rospy.get_rostime()
+        speed.timeStamp = now.secs + (now.nsecs * 1e-9)
 
     return speed
 
@@ -33,11 +37,11 @@ class Speedometer():
         return s
 
 
-class ListenerSpeedometer(Node):
+class ListenerSpeedometer:
     '''
         ROS Speedometer Subscriber. Speedometer Client to Receive speedometer from ROS nodes.
     '''
-    def __init__(self, topic):
+    def __init__(self, node: Node, topic: str):
         '''
         ListenerSpeedometer Constructor.
 
@@ -45,7 +49,7 @@ class ListenerSpeedometer(Node):
         @type topic: String
 
         '''
-        super().__init__('ListenerSpeedometer')
+        self.node = node
         self.topic = topic
         self.data = Speedometer()
         self.sub = None
@@ -74,7 +78,7 @@ class ListenerSpeedometer(Node):
         '''
         if ros_version == '2':
             if self.sub is not None:                
-                self.destroy_subscription(self.sub)
+                self.node.destroy_subscription(self.sub)
                 self.sub = None
         else:
             if self.sub is not None:
@@ -87,7 +91,7 @@ class ListenerSpeedometer(Node):
 
         '''
         if ros_version == '2':
-            self.sub = self.create_subscription(Float32, self.topic, self.__callback, 1)
+            self.sub = self.node.create_subscription(Float32, self.topic, self.__callback, 1)
         else:
             self.sub = rospy.Subscriber(self.topic, Float32, self.__callback)
 

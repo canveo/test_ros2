@@ -96,7 +96,10 @@ def odometry2Pose3D(odom):
     pose.pitch = quat2Pitch(ori.w, ori.x, ori.y, ori.z)
     pose.roll = quat2Roll(ori.w, ori.x, ori.y, ori.z)
     pose.q = [ori.w, ori.x, ori.y, ori.z]
-    pose.timeStamp = odom.header.stamp.secs + (odom.header.stamp.nsecs * 1e-9)
+    if ros_version == '2':
+        pose.timeStamp = odom.header.stamp.sec + (odom.header.stamp.nanosec * 1e-9)
+    else:
+        pose.timeStamp = odom.header.stamp.secs + (odom.header.stamp.nsecs * 1e-9)
 
     return pose
 
@@ -123,11 +126,11 @@ class Pose3d ():
         return s
 
 
-class ListenerPose3d(Node):
+class ListenerPose3d:
     '''
         ROS Pose3D Subscriber. Pose3D Client to Receive pose3d from ROS nodes.
     '''
-    def __init__(self, topic):
+    def __init__(self, node: Node, topic: str):
         '''
         ListenerPose3d Constructor.
 
@@ -135,7 +138,7 @@ class ListenerPose3d(Node):
         @type topic: String
 
         '''
-        super().__init__('ListenerPose3d')
+        self.node = node
         self.topic = topic
         self.data = Pose3d()
         self.sub = None
@@ -164,7 +167,7 @@ class ListenerPose3d(Node):
         '''
         if ros_version == '2':
             if self.sub is not None:                
-                self.destroy_subscription(self.sub)
+                self.node.destroy_subscription(self.sub)
                 self.sub = None
         else:
             if self.sub is not None:
@@ -177,7 +180,7 @@ class ListenerPose3d(Node):
 
         '''
         if ros_version == '2':
-            self.sub = self.create_subscription(Odometry, self.topic, self.__callback, 1)
+            self.sub = self.node.create_subscription(Odometry, self.topic, self.__callback, 10)
         else:
             self.sub = rospy.Subscriber(self.topic, Odometry, self.__callback)
 

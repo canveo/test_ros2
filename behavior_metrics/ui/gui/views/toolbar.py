@@ -49,16 +49,16 @@ brains_path = constants.ROOT_PATH + '/brains/'
 """ TODO:   put button for showing logs? """
 
 
-class TopicsPopup(QWidget, Node):
+class TopicsPopup(QWidget):
     """This class will show a popup window to select topics to be recorded in a rosbag
 
     Attributes:
         active_topics {list} -- List of topcis to be recorded"""
 
-    def __init__(self):
+    def __init__(self, node: Node):
         """Construtctor of the class"""
         QWidget.__init__(self)
-        super().__init__('topics_popup')
+        self.node = node
         self.setFixedSize(800, 600)
         self.setWindowTitle("Select your topics")
         self.active_topics = []
@@ -88,7 +88,7 @@ class TopicsPopup(QWidget, Node):
         """Fill the active_topics with all the topics selected by the user"""
         # topics = rospy.get_published_topics()
         if ros_version == '2':
-            topics = self.get_topic_names_and_types()
+            topics = self.node.get_topic_names_and_types()
             logger.info('Topics: ' + str(topics))
         else:
             topics = rospy.get_published_topics()
@@ -283,7 +283,7 @@ class ClickableLabel(QLabel):
 class Toolbar(QWidget):
     """Main class for the toolbar widget"""
 
-    def __init__(self, configuration, controller, parent=None):
+    def __init__(self, configuration, controller, parent=None, node=None):
         """Constructor of the class
 
         Parameters:
@@ -291,8 +291,11 @@ class Toolbar(QWidget):
             controller {uitls.controller.Controller} -- Controller instance of the application
             parent {ui.gui.views.main_view.MainView} -- Parent of this widget
         """
-        super(Toolbar, self).__init__()
+        super(Toolbar, self).__init__(parent)
         # self.setStyleSheet('background-color: rgb(51,51,51); color: white;')
+        # if node is None:
+            # raise ValueError("A shared node instance must be passed to a Toolbar instance")
+        self.node = node
         self.windowsize = QSize(440, 1000)
         self.configuration = configuration
         self.controller = controller
@@ -337,7 +340,7 @@ class Toolbar(QWidget):
         self.create_simulation_gb()
         self.main_layout.addWidget(HLine())
 
-        self.topics_popup = TopicsPopup()
+        self.topics_popup = TopicsPopup(self.node)
 
         logo = Logo()
         social = SocialMedia()

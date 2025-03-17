@@ -44,7 +44,7 @@ __license__ = 'GPLv3'
 
 
 
-class PilotCarla(threading.Thread, Node):
+class PilotCarla(threading.Thread):
     """This class handles the robot and its brain.
 
     This class called PilotCarla that handles the initialization of the robot sensors and actuators and the
@@ -59,22 +59,24 @@ class PilotCarla(threading.Thread, Node):
         brains {brains.brains_handler.Brains} -- Brains controller instance
     """
 
-    def __init__(self, configuration, controller, brain_path, experiment_model=None):
+    def __init__(self, node: Node, configuration, controller, brain_path, experiment_model=None):
         """Constructor of the pilot class
 
         Arguments:
             configuration {utils.configuration.Config} -- Configuration instance of the application
             controller {utils.controller.Controller} -- Controller instance of the MVC of the application
         """
-        super(PilotCarla, self).__init__()
-        Node.__init__(self, 'PilotCarla')
+        self.node = node
+        self.stop_event = threading.Event()
+        self.kill_event = threading.Event()
+        threading.Thread.__init__(self, args=self.stop_event)
 
         self.controller = controller
         self.controller.set_pilot(self)
         self.configuration = configuration
-        self.stop_event = threading.Event()
-        self.kill_event = threading.Event()
-        threading.Thread.__init__(self, args=self.stop_event)
+        # self.stop_event = threading.Event()
+        # self.kill_event = threading.Event()
+        # threading.Thread.__init__(self, args=self.stop_event)
         self.brain_path = brain_path
         self.robot_type = self.brain_path.split("/")[-2]
         self.sensors = None
@@ -111,8 +113,8 @@ class PilotCarla(threading.Thread, Node):
     def initialize_robot(self):
         """Initialize robot interfaces (sensors and actuators) and its brain from configuration"""
         self.stop_interfaces()
-        self.actuators = Actuators(self.configuration.actuators)
-        self.sensors = Sensors(self.configuration.sensors)
+        self.actuators = Actuators(self.configuration.actuators, self.node)
+        self.sensors = Sensors(self.configuration.sensors, self.node)
         if self.experiment_model:
             self.brains = Brains(self.sensors, self.actuators, self.brain_path, self.controller,
                                  self.experiment_model, self.configuration.brain_kwargs)
@@ -138,7 +140,7 @@ class PilotCarla(threading.Thread, Node):
         self.pilot_start_time = time.time()
         
         if ros_version == '2':
-            control_pub = self.create_publisher(CarlaControl, '/carla/control', 1)
+            control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
         else:
             control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)  
             
@@ -157,7 +159,8 @@ class PilotCarla(threading.Thread, Node):
                 
                 if ros_version == '2':
                     if not hasattr(self, 'control_pub'):
-                        control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1)
+                        # control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1) 
+                        control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
                     control_command = CarlaControl()
                     if self.async_mode:
                         control_command.command = 2 # STEP_ONCE
@@ -244,10 +247,13 @@ class PilotCarla(threading.Thread, Node):
         return False
 
     def clock_callback(self, clock_data):
-        self.ros_clock_time = clock_data.clock.to_sec()
+        if ros_version == '2':
+            self.ros_clock_time = clock_data.clock.sec + clock_data.clock.nanosec * 1e-9
+        else:
+            self.ros_clock_time = clock_data.clock.to_sec()
 
     def track_stats(self):
         if ros_version == '2':      
-            self.clock_subscriber = self.create_subscription(Clock, '/clock', self.clock_callback, 1)
+            self.clock_subscriber = self.node.create_subscription(Clock, '/clock', self.clock_callback, 1)
         else:
             self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)

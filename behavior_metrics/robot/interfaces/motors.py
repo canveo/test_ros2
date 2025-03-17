@@ -21,12 +21,12 @@ except ModuleNotFoundError as ex:
 def cmdvel2Twist(vel):
 
     tw = Twist()
-    tw.linear.x = vel.vx
-    tw.linear.y = vel.vy
-    tw.linear.z = vel.vz
-    tw.angular.x = vel.ax
-    tw.angular.y = vel.ay
-    tw.angular.z = vel.az
+    tw.linear.x = float(vel.vx)  
+    tw.linear.y =  float(vel.vy)
+    tw.linear.z = float(vel.vz)
+    tw.angular.x = float(vel.ax)
+    tw.angular.y = float(vel.ay)
+    tw.angular.z = float(vel.az)
 
     return tw
 
@@ -87,10 +87,10 @@ class CARLAVel():
 
 
 
-class PublisherMotors(Node):
+class PublisherMotors:
 
-    def __init__(self, topic, maxV, maxW, v, w):
-
+    def __init__(self, node: Node, topic: str, maxV, maxW, v, w):
+        self.node = node
         self.maxW = maxW
         self.maxV = maxV
         self.v = v
@@ -99,7 +99,7 @@ class PublisherMotors(Node):
         self.data = CMDVel()
         if ros_version == '2':
             # rclpy.init()    
-            self.pub = self.create_publisher(Twist, self.topic, 1)
+            self.pub = self.node.create_publisher(Twist, self.topic, 1)
         else:   
             self.pub = rospy.Publisher(self.topic, Twist, queue_size=1)
             rospy.init_node("FollowLineF1")
@@ -172,10 +172,10 @@ class PublisherMotors(Node):
         self.lock.release()
 
 
-class PublisherCARLAMotors(Node):
+class PublisherCARLAMotors:
 
-    def __init__(self, topic, maxV, maxW, v, w):
-        super().__init__('PublisherCARLAMotors')
+    def __init__(self, node: Node, topic: str, maxV, maxW, v, w):
+        self.node = node
         self.maxW = maxW
         self.maxV = maxV
         self.v = v
@@ -183,7 +183,7 @@ class PublisherCARLAMotors(Node):
         self.topic = topic
         self.data = CARLAVel()
         if ros_version == '2':
-            self.pub = self.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
+            self.pub = self.node.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
         else:  
             self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=1)
             rospy.init_node("CARLAMotors")
@@ -203,7 +203,7 @@ class PublisherCARLAMotors(Node):
         self.kill_event.set()
         if ros_version == '2':
             if self.pub is not None:                
-                self.destroy_publisher(self.pub)
+                self.node.destroy_publisher(self.pub)
                 self.pub = None
         else:
             if self.pub is not None:
