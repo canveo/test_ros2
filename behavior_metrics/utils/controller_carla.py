@@ -60,7 +60,7 @@ __contributors__ = []
 __license__ = 'GPLv3'
 
 
-class ControllerCarla(Node):
+class ControllerCarla:
     """This class defines the controller of the architecture, responsible of the communication between the logic (model)
     and the user interface (view).
 
@@ -71,16 +71,19 @@ class ControllerCarla(Node):
         recording {bool} -- Flag to determine if a rosbag is being recorded
     """
 
-    def __init__(self):
+    def __init__(self, node: Node):
         """ Constructor of the class. """
-        super().__init__('controller_carla')
         # pass        
+        self.node = node
         self.__data_loc = threading.Lock()
         self.__pose_loc = threading.Lock()
         self.data = {}
         self.pose3D_data = None
         self.recording = False
         self.cvbridge = CvBridge()
+        
+        self.rosbag_proc = None
+        self.proc = None
 
         client = carla.Client('localhost', 2000)
         client.set_timeout(100.0) # seconds
@@ -223,8 +226,8 @@ class ControllerCarla(Node):
             return
         
         if ros_version == "2":
-            self.rosbag_proc.terminate()
-            self.rosbag_proc.wait()
+            self.node.rosbag_proc.terminate()
+            self.node.rosbag_proc.wait()
             logger.info("Stopped bag recording")
         else:
             command = "rosnode kill /behav_bag"

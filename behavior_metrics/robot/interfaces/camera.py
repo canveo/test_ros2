@@ -23,7 +23,10 @@ def imageMsg2Image(img, bridge):
     image.width = img.width
     image.height = img.height
     image.format = "RGB8"
-    image.timeStamp = img.header.stamp.secs + (img.header.stamp.nsecs * 1e-9)
+    if ros_version == '2':
+        image.timeStamp = img.header.stamp.sec + (img.header.stamp.nanosec * 1e-9)
+    else:
+        image.timeStamp = img.header.stamp.secs + (img.header.stamp.nsecs * 1e-9)
     cv_image = 0
     if (img.encoding[-2:] == "C1"):
         # gray_img_buff = bridge.imgmsg_to_cv2(img, img.encoding)
@@ -53,10 +56,10 @@ class Image:
         return s
 
 
-class ListenerCamera(Node):
+class ListenerCamera:
 
-    def __init__(self, topic):
-        super().__init__('ListenerCamera')
+    def __init__(self, node: Node, topic: str):
+        self.node = node
         self.topic = topic
         self.data = Image()
         self.sub = None
@@ -77,7 +80,7 @@ class ListenerCamera(Node):
     def stop(self):
         if ros_version == '2':
             if self.sub is not None:                
-                self.destroy_subscription(self.sub)
+                self.node.destroy_subscription(self.sub)
                 self.sub = None
         else:
             if self.sub is not None:
@@ -86,7 +89,7 @@ class ListenerCamera(Node):
 
     def start(self):
         if ros_version == '2':
-            self.sub = self.create_subscription(ImageROS, self.topic, self.__callback, 1)
+            self.sub = self.node.create_subscription(ImageROS, self.topic, self.__callback, 1)
         else:
             self.sub = rospy.Subscriber(self.topic, ImageROS, self.__callback)
 
