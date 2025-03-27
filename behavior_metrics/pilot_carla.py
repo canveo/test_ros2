@@ -104,7 +104,7 @@ class PilotCarla(threading.Thread):
         self.time_cycle = self.configuration.pilot_time_cycle
         self.async_mode = self.configuration.async_mode
         self.waypoint_publisher_path = self.configuration.waypoint_publisher_path
-
+        
     def __wait_carla(self):
         """Wait for simulator to be initialized"""
 

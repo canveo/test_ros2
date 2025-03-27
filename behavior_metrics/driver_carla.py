@@ -20,8 +20,8 @@ from utils import metrics_carla
 from datetime import datetime
 from pilot_carla import PilotCarla
 
-from robot.interfaces.motors import PublisherMotors  # erase this line
-from robot.actuators import Actuators  # erase this line
+from robot.interfaces.motors import PublisherMotors
+from robot.actuators import Actuators 
 
 
 import matplotlib.pyplot as plt
@@ -352,9 +352,9 @@ def main():
     node = init_node(config_data['ros_version']) # Initialize the ROS node shared by all the application
         
     app_configuration = Config(config_data['config'][0])
-    
-    motors = PublisherMotors(node,'motors', 1, 1, 0, 0)  # Create the motors instance, new erase this line
-    actuators = Actuators(app_configuration.actuators, node)  # Create the actuators instance, new erase this line
+        
+    motors = PublisherMotors(node,'motors', 1, 1, 0, 0)  # Create the motors instance
+    actuators = Actuators(app_configuration.actuators, node)  # Create the actuators instance
     
     if not config_data['script']:
         if app_configuration.task not in ['follow_lane', 'follow_lane_traffic']:
@@ -373,7 +373,6 @@ def main():
         if hasattr(app_configuration, 'experiment_model'):
             experiment_model = app_configuration.experiment_model
             pilot = PilotCarla(node, app_configuration, controller, app_configuration.brain_path, experiment_model=experiment_model)
-            logger.info("launch control")  # erase this line
         else:
             pilot = PilotCarla(app_configuration, controller, app_configuration.brain_path)
         pilot.daemon = True

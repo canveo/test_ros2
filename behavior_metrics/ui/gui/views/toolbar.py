@@ -89,7 +89,6 @@ class TopicsPopup(QWidget):
         # topics = rospy.get_published_topics()
         if ros_version == '2':
             topics = self.node.get_topic_names_and_types()
-            logger.info('Topics: ' + str(topics))
         else:
             topics = rospy.get_published_topics()
             
@@ -288,7 +287,7 @@ class Toolbar(QWidget):
 
         Parameters:
             configuration {utils.configuration.Config} -- Configuration instance of the application
-            controller {uitls.controller.Controller} -- Controller instance of the application
+            controller {utils.controller.Controller} -- Controller instance of the application
             parent {ui.gui.views.main_view.MainView} -- Parent of this widget
         """
         super(Toolbar, self).__init__(parent)
@@ -302,6 +301,8 @@ class Toolbar(QWidget):
         self.parent = parent
         self.setFixedSize(self.windowsize)
         self.initUI()
+        
+        print(f"controller: {controller.__class__}")
 
         # Style of the widget
         self.setStyleSheet("""
@@ -520,7 +521,7 @@ class Toolbar(QWidget):
         with open(worlds_path) as f:
             data = f.read()
         worlds_dict = json.loads(data)[self.configuration.robot_type]
-
+        
         sim_group = QGroupBox()
         sim_group.setTitle('Simulation')
         sim_layout = QGridLayout()
@@ -739,7 +740,7 @@ class Toolbar(QWidget):
         brain = self.brain_combobox.currentText() + '.py'
         txt = '<b><FONT COLOR = lightgreen>' + " ".join(self.brain_combobox.currentText().split("_")) + '</b>'
         prev_label_text = self.current_brain_label.text()
-
+        
         try:
             self.current_brain_label.setText('Current brain: ' + txt)
 
@@ -751,6 +752,10 @@ class Toolbar(QWidget):
         except Exception as ex:
             self.current_brain_label.setText(prev_label_text)
             print("Brain could not be loaded!.")
+            print("brain_path: ", brains_path)
+            print("robot_type: ", self.configuration.robot_type)
+            print("brain: ", brain)
+            
             print(ex)
 
     def load_world(self):

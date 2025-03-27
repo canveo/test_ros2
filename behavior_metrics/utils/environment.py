@@ -31,6 +31,9 @@ __contributors__ = []
 __license__ = 'GPLv3'
 
 
+ros_version = os.environ.get('ROS_VERSION', '2')
+
+
 def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, config_spawn_point=None, config_town=None):
     """Launch the environmet specified by the launch_file given in command line at launch time.
     Arguments:
@@ -38,6 +41,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
     """
     # close previous instances of ROS and simulators if hanged.
     close_ros_and_simulators()
+    # launch_file = launch_file.replace('launch.py', 'launch')  # remove .py extension from launch file    
     try:
         if carla_simulator:
             if random_spawn_point:
@@ -69,13 +73,15 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
             else:
                 spawn_point = None
             with open("/tmp/.carlalaunch_stdout.log", "w") as out, open("/tmp/.carlalaunch_stderr.log", "w") as err:
-                ros_version = os.environ.get('ROS_VERSION', '2')
+                # ros_version = os.environ.get('ROS_VERSION', '2')
                 if ros_version == '2':
                     # In ROS2, quality value parser is passed environment variable
-                    quality = os.environ.get('QUALITY', 'Low')
+                    # quality = os.environ.get('QUALITY', 'Low')
+                    tree = ET.parse(ROOT_PATH + '/' + launch_file.replace('.launch.py', '.launch'))
+                    root = tree.getroot()
+                    quality = root.find(".//*[@name=\"quality\"]")
                     if quality == 'Low':
                         subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-RenderOffScreen", "-quality-level=Low"], stdout=out, stderr=err) 
-                        # subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-prefernvidia"], stdout=out, stderr=err) # erase this line
                     else:
                         subprocess.Popen([os.environ["CARLA_ROOT"] + "CarlaUE4.sh", "-RenderOffScreen"], stdout=out, stderr=err)
                 else:
@@ -97,7 +103,8 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
                     # child = subprocess.Popen(["roslaunch", ROOT_PATH + '/' + launch_file], stdout=out, stderr=err)
                     launch_file_path = ROOT_PATH + '/' + launch_file
                     
-                if os.environ.get('ROS_VERSION', '1') == '2':
+                # if os.environ.get('ROS_VERSION', '1') == '2':
+                if ros_version == '2':
                     launch_path = os.path.join(ROOT_PATH, launch_file)
                     # ros_cmd = ["ros2", "launch", ROOT_PATH, launch_file]
                     ros_cmd = ['ros2', 'launch', launch_path]
