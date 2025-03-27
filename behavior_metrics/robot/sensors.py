@@ -19,7 +19,7 @@ from robot.interfaces.pose3d import ListenerPose3d
 try:
     from robot.interfaces.birdeyeview import BirdEyeView
 except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported sensor 1') # erase this line
+    logger.error('CARLA is not supported sensor') 
     
 from robot.interfaces.speedometer import ListenerSpeedometer
 

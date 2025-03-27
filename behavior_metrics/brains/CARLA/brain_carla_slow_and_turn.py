@@ -12,7 +12,6 @@ from albumentations import (
 from utils.constants import DATASETS_DIR, ROOT_PATH
 
 
-
 GENERATED_DATASETS_DIR = ROOT_PATH + '/' + DATASETS_DIR
 
 
