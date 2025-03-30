@@ -49,7 +49,7 @@ class Brain:
                 print("File " + model + " cannot be found in " + PRETRAINED_MODELS)
             
             if config['UseOptimized']:
-                self.net = torch.jit.load(PRETRAINED_MODELS + model).to(self.device)
+                self.net = torch.jit.load(PRETRAINED_MODELS + model).to(self.device)          # modificar
             else:
                 self.net = PilotNetOneHot((288, 200, 6), 3, 4, 4).to(self.device)
                 self.net.load_state_dict(torch.load(PRETRAINED_MODELS + model,map_location=self.device))
@@ -173,8 +173,8 @@ class Brain:
 
             self.motors.sendThrottle(throttle)
             self.motors.sendSteer(steer)
-            self.motors.sendBrake(brake)   # comentar o enviar brake = 0.0, el modelo no contempla el freno
-
+            # self.motors.sendBrake(brake)   # ModifiedDeepestLSTM only work with throttle and steer
+                
             # calculate distance to target point
             # print(f'vehicle location: ({vehicle_location.x}, {-vehicle_location.y})')
             # print(f'target point: ({self.target_point[0]}, {self.target_point[1]})')
