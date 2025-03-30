@@ -33,16 +33,16 @@ Behaviors:
                     Topic: '/carla/ego_vehicle/vehicle_control_cmd'
                     MaxV: 3
                     MaxW: 0.3
-        BrainPath: 'brains/CARLA/brain_carla_segmentation_based_imitation_learning.py'
+        BrainPath: 'brains/CARLA/brain_modifiedDeepestLSTM.py'
         PilotTimeCycle: 50
         AsyncMode: True
         Parameters:
             # Model: 'pilotnet_v8.0.pth'
-            Model: 'bubble_monolithic_mDeepestLST.pth'
-            ImageCropped: True
-            ImageSize: [ 100,50 ]
-            ImageNormalized: True
-            PredictionsNormalized: True
+            Model: 'bubble_monolithic_mDeepestLSTM.pth'
+            ImageCropped: False
+            ImageSize: [200,66]
+            ImageNormalized: False
+            PredictionsNormalized: False
             GPU: True
             UseOptimized: False
             ImageTranform: ''
