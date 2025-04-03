@@ -19,10 +19,10 @@ import matplotlib.pyplot as plt
 import shutil
 import time
 import os
-import rosbag
+# import rosbag
 import re
 
-from bagpy import bagreader
+# from bagpy import bagreader
 from utils.logger import logger
 
 import pandas as pd
