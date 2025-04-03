@@ -19,7 +19,8 @@ from robot.interfaces.pose3d import ListenerPose3d
 try:
     from robot.interfaces.birdeyeview import BirdEyeView
 except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported')
+    logger.error('CARLA is not supported sensor') 
+    
 from robot.interfaces.speedometer import ListenerSpeedometer
 
 __author__ = 'fqez'
@@ -36,12 +37,13 @@ class Sensors:
         pose3d {dict} -- Dictionary which key is the name of the motor and value is an odometry instance.
     """
 
-    def __init__(self, sensors_config):
+    def __init__(self, sensors_config, node):
         """Constructor of the class
 
         Arguments:
             sensors_config {dict} -- Configuration of the different sensors.
         """
+        self.node = node
 
         # Load cameras
         cameras_conf = sensors_config.get('Cameras', None)
@@ -79,15 +81,15 @@ class Sensors:
             name = sensor_config[elem]['Name']
             topic = sensor_config[elem]['Topic']
             if sensor_type == 'camera':
-                sensor_dict[name] = ListenerCamera(topic)
+                sensor_dict[name] = ListenerCamera(self.node, topic)
             elif sensor_type == 'laser':
-                sensor_dict[name] = ListenerLaser(topic)
+                sensor_dict[name] = ListenerLaser(self.node, topic)
             elif sensor_type == 'pose3d':
-                sensor_dict[name] = ListenerPose3d(topic)
+                sensor_dict[name] = ListenerPose3d(self.node, topic)
             elif sensor_type == 'bird_eye_view':
                 sensor_dict[name] = BirdEyeView()
             elif sensor_type == 'speedometer':
-                sensor_dict[name] = ListenerSpeedometer(topic)
+                sensor_dict[name] = ListenerSpeedometer(self.node, topic)
 
         return sensor_dict
 

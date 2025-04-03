@@ -15,7 +15,14 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 import os
 
-import rospy
+# import rospy
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+    from rclpy.node import Node
+else:
+    import rospy    
+
 from PyQt5.QtCore import (QPropertyAnimation, QSequentialAnimationGroup, QSize,
                           Qt)
 from PyQt5.QtGui import QColor, QPalette, QPixmap
@@ -29,6 +36,8 @@ from ui.gui.views.stats_window import StatsWindow, CARLAStatsWindow
 from ui.gui.views.logo import Logo
 from ui.gui.views.social import SocialMedia
 from utils import constants, environment, controller_carla
+
+from utils.logger import logger
 
 __author__ = 'fqez'
 __contributors__ = []
@@ -46,9 +55,10 @@ class TopicsPopup(QWidget):
     Attributes:
         active_topics {list} -- List of topcis to be recorded"""
 
-    def __init__(self):
+    def __init__(self, node: Node):
         """Construtctor of the class"""
         QWidget.__init__(self)
+        self.node = node
         self.setFixedSize(800, 600)
         self.setWindowTitle("Select your topics")
         self.active_topics = []
@@ -76,7 +86,12 @@ class TopicsPopup(QWidget):
 
     def fill_topics(self):
         """Fill the active_topics with all the topics selected by the user"""
-        topics = rospy.get_published_topics()
+        # topics = rospy.get_published_topics()
+        if ros_version == '2':
+            topics = self.node.get_topic_names_and_types()
+        else:
+            topics = rospy.get_published_topics()
+            
         for idx, topic in enumerate(topics):
             cont = QFrame()
             ll = QHBoxLayout()
@@ -267,22 +282,27 @@ class ClickableLabel(QLabel):
 class Toolbar(QWidget):
     """Main class for the toolbar widget"""
 
-    def __init__(self, configuration, controller, parent=None):
+    def __init__(self, configuration, controller, parent=None, node=None):
         """Constructor of the class
 
         Parameters:
             configuration {utils.configuration.Config} -- Configuration instance of the application
-            controller {uitls.controller.Controller} -- Controller instance of the application
+            controller {utils.controller.Controller} -- Controller instance of the application
             parent {ui.gui.views.main_view.MainView} -- Parent of this widget
         """
-        super(Toolbar, self).__init__()
+        super(Toolbar, self).__init__(parent)
         # self.setStyleSheet('background-color: rgb(51,51,51); color: white;')
+        # if node is None:
+            # raise ValueError("A shared node instance must be passed to a Toolbar instance")
+        self.node = node
         self.windowsize = QSize(440, 1000)
         self.configuration = configuration
         self.controller = controller
         self.parent = parent
         self.setFixedSize(self.windowsize)
         self.initUI()
+        
+        print(f"controller: {controller.__class__}")
 
         # Style of the widget
         self.setStyleSheet("""
@@ -321,7 +341,7 @@ class Toolbar(QWidget):
         self.create_simulation_gb()
         self.main_layout.addWidget(HLine())
 
-        self.topics_popup = TopicsPopup()
+        self.topics_popup = TopicsPopup(self.node)
 
         logo = Logo()
         social = SocialMedia()
@@ -501,7 +521,7 @@ class Toolbar(QWidget):
         with open(worlds_path) as f:
             data = f.read()
         worlds_dict = json.loads(data)[self.configuration.robot_type]
-
+        
         sim_group = QGroupBox()
         sim_group.setTitle('Simulation')
         sim_layout = QGridLayout()
@@ -720,7 +740,7 @@ class Toolbar(QWidget):
         brain = self.brain_combobox.currentText() + '.py'
         txt = '<b><FONT COLOR = lightgreen>' + " ".join(self.brain_combobox.currentText().split("_")) + '</b>'
         prev_label_text = self.current_brain_label.text()
-
+        
         try:
             self.current_brain_label.setText('Current brain: ' + txt)
 
@@ -732,6 +752,10 @@ class Toolbar(QWidget):
         except Exception as ex:
             self.current_brain_label.setText(prev_label_text)
             print("Brain could not be loaded!.")
+            print("brain_path: ", brains_path)
+            print("robot_type: ", self.configuration.robot_type)
+            print("brain: ", brain)
+            
             print(ex)
 
     def load_world(self):
