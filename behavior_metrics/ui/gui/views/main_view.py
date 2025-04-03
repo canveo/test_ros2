@@ -398,8 +398,9 @@ class MainView(QWidget):
     """
     switch_window = pyqtSignal()
 
-    def __init__(self, layout_configuration, configuration, controller, parent=None):
+    def __init__(self, layout_configuration, configuration, controller, parent=None, node=None):
         super(MainView, self).__init__(parent)
+        self.node = node
         self.parent = parent
         self.controller = controller
         self.layout_configuration = layout_configuration
@@ -417,7 +418,7 @@ class MainView(QWidget):
         # define view's widgets
 
         central_layout = QHBoxLayout()
-        toolbar = Toolbar(self.configuration, self.controller, self.parent)
+        toolbar = Toolbar(self.configuration, self.controller, self.parent, self.node)
         self.matrix = LayoutMatrix(self.layout_configuration, self.configuration, self)
         central_layout.addWidget(toolbar)
         central_layout.addWidget(self.matrix)

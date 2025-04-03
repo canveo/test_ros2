@@ -34,27 +34,33 @@ class Brains(object):
     def load_brain(self, path, model=None):
 
         path_split = path.split("/")
-        robot_type = path_split[1]
+        framework = path_split[-3]
+        robot_type = path_split[-2]
         module_name = path_split[-1][:-3]  # removing .py extension
+        
+        # import_name = 'brains.' + framework + '.' + robot_type + '.' + module_name
+        
         if len(path_split) == 4:
             framework = path_split[2]
             import_name = 'brains.' + robot_type + '.' + framework + '.' + module_name
         else:
             import_name = 'brains.' + robot_type + '.' + module_name
+            print(import_name)
 
         if robot_type == 'CARLA':
             module = importlib.import_module(import_name)
             Brain = getattr(module, 'Brain')
+            print('Brain: ', Brain)
             if self.model:
                 self.active_brain = Brain(self.sensors, self.actuators, handler=self, model=self.model,
                                           config=self.config)
             else:
                 self.active_brain = Brain(self.sensors, self.actuators, handler=self, config=self.config)
+                print('config: ', self.sensors)
         else:
             if import_name in sys.modules:  # for reloading sake
                 del sys.modules[import_name]
             module = importlib.import_module(import_name)
-            Brain = getattr(module, 'Brain')
             if robot_type == 'drone':
                 self.active_brain = Brain(handler=self, config=self.config)
             else:

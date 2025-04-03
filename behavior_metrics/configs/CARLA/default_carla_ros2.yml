@@ -33,13 +33,13 @@ Behaviors:
                     Topic: '/carla/ego_vehicle/vehicle_control_cmd'
                     MaxV: 3
                     MaxW: 0.3
-        BrainPath: 'brains/CARLA/brain_carla_segmentation_based_imitation_learning.py'
-        PilotTimeCycle: 50
-        AsyncMode: True
+        BrainPath: 'brains/CARLA/brain_carla_slow_and_turn.py'
+        PilotTimeCycle: 50 # Turn up to reduce number of control decisions
+        AsyncMode: True # Set to False to control simulator time
         Parameters:
-            Model: 'pilotnet_v8.0.pth'
+            Model: ''
             ImageCropped: True
-            ImageSize: [ 100,50 ]
+            ImageSize: [ 200,66 ]
             ImageNormalized: True
             PredictionsNormalized: True
             GPU: True
@@ -47,7 +47,8 @@ Behaviors:
             ImageTranform: ''
         Type: 'CARLA'
     Simulation:
-        # World: configs/CARLA/CARLA_launch_files/town_02_anticlockwise_imitation_learning.launch
+        # World: configs/CARLA/CARLA_launch_files/town_02_anticlockwise.launch.py
+        # World: configs/CARLA/CARLA_launch_files/ros2_town02.launch.py
         World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py
         RandomSpawnPoint: False
     Dataset:
