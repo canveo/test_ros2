@@ -154,10 +154,16 @@ class ControllerGazebo:
         if not self.recording:
             logger.info("Recording bag at: {}".format(dataset_name))
             self.recording = True
-            command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
-            command = shlex.split(command)
-            with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
-                self.rosbag_proc = subprocess.Popen(command, stdout=out, stderr=err)
+
+            if ros_version == "2":
+            command = "ros2 bag record -o " + dataset_name + "/behav_bag" + " " + " ".join(topics)
+            else:
+                command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
+                
+            logger.info("Recording bag at: {}".format(dataset_name))
+            cmd_split = shlex.split(command)
+            with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
+                self.rosbag_proc = subprocess.Popen(cmd_split, stdout=out, stderr=err)
         else:
             logger.info("Rosbag already recording")
             self.stop_record()
@@ -169,7 +175,7 @@ class ControllerGazebo:
             self.recording = False
             command = "rosnode kill /behav_bag"
             command = shlex.split(command)
-            with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+            with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
                 subprocess.Popen(command, stdout=out, stderr=err)
         else:
             logger.info("No bag recording")
@@ -208,7 +214,7 @@ class ControllerGazebo:
         topics = ['/F1ROS/odom', '/clock']
         command = "rosbag record -O " + self.experiment_metrics_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
         command = shlex.split(command)
-        with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             self.proc = subprocess.Popen(command, stdout=out, stderr=err)
 
     def stop_recording_metrics(self, pitch_error=False):
@@ -217,7 +223,7 @@ class ControllerGazebo:
 
         command = "rosnode kill /behav_metrics_bag"
         command = shlex.split(command)
-        with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             subprocess.Popen(command, stdout=out, stderr=err)
 
         # Wait for rosbag file to be closed. Otherwise it causes error
