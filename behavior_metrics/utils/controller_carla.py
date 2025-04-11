@@ -201,13 +201,13 @@ class ControllerCarla:
         self.recording = True
         
         if ros_version == "2":
-            command = "ros2 bag record -o " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
+            command = "ros2 bag record -o " + dataset_name + "/behav_bag" + " " + " ".join(topics)
         else:
             command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
             
         logger.info("Recording bag at: {}".format(dataset_name))
         cmd_split = shlex.split(command)
-        with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             self.rosbag_proc = subprocess.Popen(cmd_split, stdout=out, stderr=err)
 
     def stop_record(self):
@@ -226,13 +226,13 @@ class ControllerCarla:
             return
         
         if ros_version == "2":
-            self.node.rosbag_proc.terminate()
-            self.node.rosbag_proc.wait()
+            self.rosbag_proc.terminate()
+            self.rosbag_proc.wait()
             logger.info("Stopped bag recording")
         else:
             command = "rosnode kill /behav_bag"
             command_split = shlex.split(command)
-            with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+            with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
                 subprocess.Popen(command_split, stdout=out, stderr=err)
         self.recording = False  
         self.rosbag_proc = None
@@ -339,12 +339,12 @@ class ControllerCarla:
             ]
 
         if ros_version == "2":
-            command = "ros2 bag record -o " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
+            command = "ros2 bag record -o " + self.experiment_metrics_bag_filename + " " + " ".join(topics)
         else:
             command = "rosbag record -O " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
         
         command = shlex.split(command)
-        with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             self.proc = subprocess.Popen(command, stdout=out, stderr=err)
 
     def stop_recording_metrics(self, termination_code=None, route_length=None):
@@ -371,7 +371,7 @@ class ControllerCarla:
         else:
             command = "rosnode kill /behav_metrics_bag"
         command = shlex.split(command)
-        with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
+        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             subprocess.Popen(command, stdout=out, stderr=err)
 
         # Wait for rosbag file to be closed. Otherwise it causes error
