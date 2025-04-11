@@ -14,7 +14,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 import threading
 import time
-import rospy
+
 import subprocess
 import traceback
 
@@ -27,6 +27,13 @@ from utils.constants import MIN_EXPERIMENT_PERCENTAGE_COMPLETED
 from rosgraph_msgs.msg import Clock
 
 import numpy as np
+
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+    from rclpy.node import Node
+else:    
+    import rospy
 
 __author__ = 'fqez'
 __contributors__ = []
@@ -155,7 +162,10 @@ class PilotGazebo(threading.Thread):
                 self.real_time_factors.append(self.real_time_factor)
                 self.brain_iterations_simulated_time.append(self.ros_clock_time - start_time_ros)
         self.execution_completed = True
-        self.clock_subscriber.unregister()
+        if ros_version == '2':
+            self.ros2_node.destroy_subscription(self.clock_subscriber)
+        else:    
+            self.clock_subscriber.unregister()
         self.stats_process.terminate()
         poll = self.stats_process.poll()
         while poll is None:
@@ -280,7 +290,13 @@ class PilotGazebo(threading.Thread):
             time.sleep(1)
             poll = self.stats_process.poll()
 
-        self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)
+        
+        if ros_version == '2':
+            self.ros2_node = Node("pilot_gazebo")
+            self.clock_subscriber = self.ros2_node.create_subscription(Clock, "/clock", self.clock_callback,1)
+        else:    
+            self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)
+        
         with self.stats_process.stdout:
             for line in iter(self.stats_process.stdout.readline, b''):
                 stats_list = [x.strip() for x in line.split(b',')]
