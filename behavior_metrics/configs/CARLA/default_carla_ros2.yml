@@ -52,11 +52,11 @@ Behaviors:
         World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py
         RandomSpawnPoint: False
     Dataset:
-        In: '/tmp/my_bag.bag'
+        In: '/tmp/my_bag/'
         Out: ''
     Stats:
         Out: './'
-        PerfectLap: './perfect_bags/lap-simple-circuit.bag'
+        PerfectLap: './perfect_bags/lap-simple-circuit/'
     Layout:
         Frame_0:
             Name: frame_0
