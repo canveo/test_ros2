@@ -72,22 +72,32 @@ class Brain:
                 time.sleep(1)  # sleep for 1 second before checking again
 
         if model:
-            if not path.exists(PRETRAINED_MODELS + model):
-                print("File " + model + " cannot be found in " + PRETRAINED_MODELS)
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            
+            self.monolithic_model = ModifiedDeepestLSTM(image_shape=(66, 200, 3), num_labels=2)
+            monolithic_model_path = PRETRAINED_MODELS + model
+            print("Loading model from: ", monolithic_model_path)
+            
+            self.monolithic_model.load_state_dict(torch.load(monolithic_model_path, map_location=self.device))
+            self.monolithic_model.to(self.device)
+            self.monolithic_model.eval()
+            # if not path.exists(PRETRAINED_MODELS + model):
+            #     print("File " + model + " cannot be found in " + PRETRAINED_MODELS)
 
-            if config["UseOptimized"]:
-                self.net = torch.jit.load(PRETRAINED_MODELS + model).to(
-                    self.device
-                )  # TorchScript model verification
-            else:
-                # self.net = PilotNetOneHot((288, 200, 6), 3, 4, 4).to(self.device)
-                self.net = ModifiedDeepestLSTM((66, 200, 3), 2).to(
-                    self.device
-                )  # image size 200x66x3, 2 num labels
-                self.net.load_state_dict(
-                    torch.load(PRETRAINED_MODELS + model, map_location=self.device)
-                )
-                self.net.eval()
+            # if config["UseOptimized"]:
+            #     self.net = torch.jit.load(PRETRAINED_MODELS + model).to(
+            #         self.device
+            #     )  # TorchScript model verification
+            # else:
+            #     # self.net = PilotNetOneHot((288, 200, 6), 3, 4, 4).to(self.device)
+            #     self.net = ModifiedDeepestLSTM((66, 200, 3), 2).to(
+            #         self.device
+            #     )  # image size 200x66x3, 2 num labels
+            #     self.net.load_state_dict(
+            #         torch.load(PRETRAINED_MODELS + model, map_location=self.device)
+            #     )
+            #     self.net.eval()
+            #     print("Model modified loaded: ", model)
 
         if "Route" in config:
             route = config["Route"]
@@ -186,19 +196,22 @@ class Brain:
 
         self.update_frame("frame_0", rgb_image)
         self.update_frame("frame_1", seg_image)
+        
 
         start_time = time.time()
 
         try:
-            steer, throttle = self.predict_controls(self.net, seg_image)
-            
-            print("steer: ", steer)
-            print("throttle: ", throttle)   
+            steer, throttle = self.predict_controls(self.monolithic_model, seg_image)
+            denormalized_steer = np.interp(steer, (0, 1), (-1, 1))
 
-            self.motors.sendThrottle(throttle)
-            self.motors.sendSteer(steer)
+            # print(f"steer {denormalized_steer:.2f}, throttle {throttle:.2f}")
             
+            self.motors.sendThrottle(throttle)
+            self.motors.sendSteer(denormalized_steer)       
+
             self.inference_times.append(time.time() - start_time)
+            
+            # print(self.inference_times[-1])
             
         except Exception as ex:
             logger.info("Error inside brain: Exception!")
