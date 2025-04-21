@@ -43,9 +43,9 @@ def list_topics_ros2(bag_dir):
 
 def process_bag_msgs_ros1(bag_msgs, all_data):
     """
-    Procesa mensajes de un bag ROS1 (F1 simulation) y actualiza all_data.
-    - bag_msgs: lista de tuplas (topic, msg, timestamp)
-    - all_data: diccionario global a actualizar
+    Processes massages from a ROS1 bag (F1 simulation) and updates all_data.
+    - bag_msgs: list of tuples (topic, msg, timestamp)
+    - all_data: dglobal dictionary to update
     """
     import yaml, json
     from cv_bridge import CvBridge
@@ -57,7 +57,7 @@ def process_bag_msgs_ros1(bag_msgs, all_data):
     first_image = np.zeros((1,1))
     bridge = CvBridge()
 
-    # Extraemos datos
+    # Extraction of data from the bag
     for topic, msg, t in bag_msgs:
         if topic == '/F1ROS/odom':
             d = yaml.load(str(msg), Loader=yaml.FullLoader)
@@ -73,10 +73,11 @@ def process_bag_msgs_ros1(bag_msgs, all_data):
         elif topic == '/first_image':
             first_image = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
 
-    # Determinamos el "mundo" o experimento
+    # Determination of the world
+    # The world is determined by the metadata
     world = metadata.get('world', 'unknown').split('.')[0]
 
-    # Inicializamos la entrada en all_data
+    # Initialize the dictionary for the world if it doesn't exist
     if world not in all_data:
         all_data[world] = {
             'percentage_completed': [], 'completed_distance': [],
@@ -92,7 +93,7 @@ def process_bag_msgs_ros1(bag_msgs, all_data):
         }
 
     d = all_data[world]
-    # Volcamos las métricas
+    # Add data to the dictionary
     d['completed_distance'].append(experiment_metrics.get('completed_distance', 0))
     d['percentage_completed'].append(experiment_metrics.get('percentage_completed', 0))
     d['image']['first_images'].append(first_image)
@@ -123,9 +124,9 @@ def process_bag_msgs_ros1(bag_msgs, all_data):
 
 def process_bag_msgs_ros2(bag_msgs, all_data):
     """
-    Procesa mensajes de un bag ROS2 (CARLA) y actualiza all_data.
-    - bag_msgs: lista de tuplas (topic, msg, timestamp)
-    - all_data: diccionario global a actualizar
+    Processes messages from a ROS2 bag (CARLA) and updates all_data.
+    - bag_msgs: list of tuples (topic, msg, timestamp)
+    - all_data: global dictionary to update
     """
     import numpy as np
 
@@ -168,7 +169,7 @@ def process_bag_msgs_ros2(bag_msgs, all_data):
 
 def read_ros1(bag_file: str, topics: list):
     """
-    Lee un bag de ROS1 (.bag) y devuelve lista de tuplas (topic, msg, timestamp_s).
+    Read a ROS1 bag (.bag) and return a list of tuples (topic, msg, timestamp_s).
     """
     import rosbag
     msgs = []
@@ -181,10 +182,10 @@ def read_ros1(bag_file: str, topics: list):
 
 def read_ros2(bag_dir: str, topics: list, topic_type_map: dict):
     """
-    Lee un bag de ROS2 (directorio .bag/) y devuelve lista de tuplas (topic, msg, timestamp_s).
-    - bag_dir: carpeta que contiene .db3 y metadata.yaml
-    - topics: lista de tópicos a extraer
-    - topic_type_map: dict {topic: 'package/msg/Type'} para deserializar
+    Read a ROS2 bag (.bag/ directory) and returns a list of tuples (topic, msg, timestamp_s).
+    - bag_dir: folder containing.db3 and metadata.yaml
+    - topics: list of topics to extact
+    - topic_type_map: dict {topic: 'package/msg/Type'} for deserialization
     """
     from rosbag2_py import StorageOptions, ConverterOptions, SequentialReader
     from rclpy.serialization import deserialize_message
@@ -203,7 +204,7 @@ def read_ros2(bag_dir: str, topics: list, topic_type_map: dict):
         topic, data, t = reader.read_next()
         if topic not in topics:
             continue
-        # si conocemos el tipo, deserializamos a mensaje
+        # if we know the type of the topic, deserialize it
         type_str = topic_type_map.get(topic)
         if type_str:
             msg_cls = get_message(type_str)
@@ -260,7 +261,7 @@ if __name__ == "__main__":
     #     except Exception as excep:
     #         print("Error reading bag: ", excep)
     if ros_version == "2":
-    # Recojo todas las subcarpetas que acaban en .bag
+    # Collect all subdirectories that end with .bag and read them one by one
         bag_dirs = [
             os.path.join(baginput, d)
             for d in os.listdir(baginput)
@@ -328,35 +329,32 @@ if __name__ == "__main__":
 
 
     for world, metrics in all_data.items():
-        # Directorios base
+        # Base directory for the world
         base_dir   = os.path.join(output, 'bag_analysis_plots', world)
         first_dir  = os.path.join(base_dir, 'first_images')
         perf_dir   = os.path.join(base_dir, 'performances')
         path_dir   = os.path.join(base_dir, 'path_followed')
 
-        # Creación de carpetas
+        # Make directories if they don't exist
         os.makedirs(first_dir, exist_ok=True)
         os.makedirs(perf_dir,  exist_ok=True)
         os.makedirs(path_dir,  exist_ok=True)
 
-        # 1) Simulación F1 (tiene entrada 'image')
         if 'image' in metrics:
             images   = metrics['image']['first_images']
             xs       = metrics['image']['path_x']
             ys       = metrics['image']['path_y']
             for i, img in enumerate(images, start=1):
-                # Guardar primera imagen
+            
                 cv2.imwrite(os.path.join(first_dir, f'Run_{i}.png'), img)
-                # Dibujar trayectoria
+                # Draw the path followed
                 fig = plt.figure(figsize=(10,5))
                 plt.scatter(xs[i-1], ys[i-1], zorder=3)
                 plt.title(f'Path F1 in "{world}", run {i}')
                 plt.savefig(os.path.join(path_dir, f'Run_{i}.png'))
                 plt.close()
-            # Ya procesamos todo lo de F1, saltamos el resto
             continue
 
-        # 2) Simulación CARLA (tiene entrada 'path_x'/'path_y')
         if 'path_x' in metrics and 'path_y' in metrics:
             xs = metrics['path_x']
             ys = metrics['path_y']
@@ -366,22 +364,17 @@ if __name__ == "__main__":
                 plt.title(f'Path CARLA in "{world}", run {i}')
                 plt.savefig(os.path.join(path_dir, f'Run_{i}.png'))
                 plt.close()
-            # No continuar a métricas escalares, porque CARLA puede contener también otras listas
-            # pero queremos además graficar sus métricas escalares más abajo, así que NO hacemos 'continue' aquí.
-
-        # 3) Métricas escalares (cualquier clave cuyo primer elemento sea un número)
+           
         for key, values in metrics.items():
-            # Saltamos ya graficado: image, path_x, path_y
             if key in ('image', 'path_x', 'path_y'):
                 continue
             if not values:
                 continue
             first = values[0]
-            # Si el primer elemento no es escalar, lo saltamos
             if isinstance(first, (list, tuple, np.ndarray)):
                 continue
 
-            # Graficamos bar plot
+            # Graphical bar plot representation
             labels = [f'Run_{i+1}' for i in range(len(values))]
             fig = plt.figure(figsize=(10,5))
             plt.bar(labels, values, width=0.4)
