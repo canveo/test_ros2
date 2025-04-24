@@ -329,7 +329,8 @@ class ControllerCarla:
 
         self.metrics_record_dir_path = metrics_record_dir_path
         os.mkdir(self.metrics_record_dir_path + self.time_str)
-        self.experiment_metrics_bag_filename = self.metrics_record_dir_path + self.time_str + '/' + self.time_str + '.bag'
+        # self.experiment_metrics_bag_filename = self.metrics_record_dir_path + self.time_str  + '/' + self.time_str  + '.bag'
+        self.experiment_metrics_bag_filename = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str)
 
         topics = [
             '/carla/npc_vehicle_1/odometry',
