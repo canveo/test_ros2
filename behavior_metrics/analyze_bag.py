@@ -250,23 +250,17 @@ if __name__ == "__main__":
 
     all_data = {}
      
-    # if ros_version == "2":
-    #     print('Reading ROS2 bag: ' + baginput)
-    #     try:
-    #         available = list_topics_ros2(baginput)
-    #         topics_to_read = [t for t in topic_type_map.keys() if t in available]
-            
-    #         bag_msgs = read_ros2(baginput, topics_to_read, topic_type_map)
-    #         process_bag_msgs_ros2(bag_msgs, all_data)
-    #     except Exception as excep:
-    #         print("Error reading bag: ", excep)
+  
     if ros_version == "2":
     # Collect all subdirectories that end with .bag and read them one by one
         bag_dirs = [
             os.path.join(baginput, d)
             for d in os.listdir(baginput)
-            if os.path.isdir(os.path.join(baginput, d)) and d.endswith('.bag')
-        ]
+            # if os.path.isdir(os.path.join(baginput, d)) and d.endswith('.bag')
+             if os.path.isdir(os.path.join(baginput, d)) and
+                os.path.isfile(os.path.join(baginput, d, 'metadata.yaml')) and
+                any(f.endswith('.db3') for f in os.listdir(os.path.join(baginput, d)))
+            ]
         print(f"Detected {len(bag_dirs)} ROS2 bags under {baginput}")
         for bag_dir in bag_dirs:
             print("Reading ROS2 bag:", bag_dir)
@@ -289,44 +283,7 @@ if __name__ == "__main__":
             except Exception as excep:
                 print("Error reading bag: ", excep)
 
-    # for world in all_data.keys():
-    #     directory = output + 'bag_analysis_plots/' + world
-    #     if not os.path.exists(directory):
-    #         os.makedirs(directory + '/' + 'first_images')
-    #         os.makedirs(directory + '/' + 'performances')
-    #         os.makedirs(directory + '/' + 'path_followed')
-
-    #     # for key in all_data[world].keys():
-    #     for key, val in all_data[world].items():
-
-    #         if key == 'image':
-    #             images = all_data[world][key]['first_images']
-    #             all_path_x = all_data[world][key]['path_x']
-    #             all_path_y = all_data[world][key]['path_y']
-    #             for it in range(len(images)):
-    #                 cv2.imwrite(directory + '/' + 'first_images/Run_' + str(it + 1) + '.png', images[it])
-
-    #                 fig = plt.figure(figsize=(10, 5))
-    #                 plt.scatter(all_path_x[it], all_path_y[it], zorder=3)
-    #                 plt.ylabel(key)
-    #                 plt.title('Path followed in "{}" circuit'.format(world))
-    #                 plt.savefig(directory + '/' + 'path_followed/Run_' + str(it + 1) + '.png')
-    #                 plt.close()
-         
-    #         else:
-    #             plotData = all_data[world][key]
-    #             labels = []
-    #             for it in range(len(plotData)):
-    #                 labels.append('Run_' + str(it + 1))
-    #             fig = plt.figure(figsize=(10, 5))
-    #             plt.bar(labels, plotData, color='maroon', width=0.4)
-    #             plt.ylabel(key)
-    #             plt.title('Performance in "{}" circuit with metric "{}"'.format(world, key))
-    #             plt.savefig(directory + '/' + 'performances/' + key + '.png')
-    #             plt.close()
  
-    
-
 
     for world, metrics in all_data.items():
         # Base directory for the world
@@ -382,5 +339,4 @@ if __name__ == "__main__":
             plt.title(f'Performance in "{world}" — {key}')
             plt.savefig(os.path.join(perf_dir, f'{key}.png'))
             plt.close()
-
 
