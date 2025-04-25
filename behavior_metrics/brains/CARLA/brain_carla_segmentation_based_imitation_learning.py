@@ -173,7 +173,7 @@ class Brain:
 
             self.motors.sendThrottle(throttle)
             self.motors.sendSteer(steer)
-            self.motors.sendBrake(brake)
+            self.motors.sendBrake(brake)   # comentar o enviar brake = 0.0, el modelo no contempla el freno
 
             # calculate distance to target point
             # print(f'vehicle location: ({vehicle_location.x}, {-vehicle_location.y})')
