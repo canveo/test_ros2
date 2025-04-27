@@ -26,6 +26,20 @@ else:
     import rospy
     import rosbag
     
+topic_type_map = {
+  '/carla/ego_vehicle/odometry': 'nav_msgs/msg/Odometry',
+  '/carla/ego_vehicle/collision': 'carla_msgs/msg/CarlaCollisionEvent',
+  '/carla/ego_vehicle/lane_invasion': 'carla_msgs/msg/CarlaLaneInvasionEvent',
+  '/carla/ego_vehicle/speedometer': 'std_msgs/msg/Float32',
+  '/carla/ego_vehicle/vehicle_status': 'carla_msgs/msg/CarlaEgoVehicleStatus',
+  '/carla/ego_vehicle/rgb_front/image': 'sensor_msgs/msg/Image',
+  '/clock': 'rosgraph_msgs/msg/Clock',
+  '/metadata': 'std_msgs/msg/String',             
+  '/experiment_metrics': 'std_msgs/msg/String', 
+  '/first_image': 'sensor_msgs/msg/Image'
+  
+}
+    
 def list_topics_ros1(bag_file):
     bag = rosbag.Bag(bag_file)
     topics = set(t for t,_,_ in bag.read_messages())
@@ -128,8 +142,7 @@ def process_bag_msgs_ros2(bag_msgs, all_data):
     - bag_msgs: list of tuples (topic, msg, timestamp)
     - all_data: global dictionary to update
     """
-    import numpy as np
-
+   
     x_points, y_points = [], []
     collision_count = 0
     lane_invasion_count = 0
@@ -166,7 +179,72 @@ def process_bag_msgs_ros2(bag_msgs, all_data):
     avg_speed = np.mean(speeds) if speeds else 0.0
     d['average_speed'].append(avg_speed)
     d['sim_time'].append(sim_time)
-
+    
+def process_bag_msgs_ros2_extended(bag_msgs, all_data):
+    bridge = CvBridge()
+    x_points, y_points = [], []
+    metadata = {}
+    experiments_metrics = {}
+    first_image = np.zeros((1,1))
+    
+    
+    for topic, msg, t in bag_msgs:
+        if topic == '/carla/ego_vehicle/odometry':
+            pos = msg.pose.pose.postions
+            x_points.append(pos.x)
+            y_points.append(pos.y)
+        elif topic == '/metabridgedata':
+            metadata = json.loads(msg.data)
+        elif topic == '/experiment_metrics':
+            experiment_metrics = json.loads(msg.data)
+        elif topic == '/first_image':
+            fisrt_image = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            
+    world = metadata.get('world', 'carla').split('.')[0]
+    _fill_all_data(world, all_data, x_points, y_points, experiment_metrics, first_image)
+    
+def _fill_all_data(world, all_data, x_points, y_points, experiment_metrics, first_image):
+    if world not in all_data:
+        all_data[world] = {
+            'percentage_completed': [], 'completed_distance': [],
+            'lap_seconds': [], 'circuit_diameter': [], 'average_speed': [],
+            'image': {'first_images': [], 'path_x': [], 'path_y': []},
+            'position_deviation_mae': [], 'position_deviation_total_err': [],
+            'mean_brain_iterations_real_time': [], 'brain_iterations_frequency_real_time': [],
+            'target_brain_iterations_real_time': [], 'brain_iterations_frequency_simulated_time': [],
+            'target_brain_iterations_simulated_time': [], 'mean_inference_time': [],
+            'frame_rate': [], 'mean_brain_iterations_simulated_time': [],
+            'real_time_factor': [], 'real_time_update_rate': [],
+            'experiment_total_simulated_time': [], 'experiment_total_real_time': []
+        }
+    d = all_data[world]
+    d['completed_distance'].append(experiment_metrics.get('completed_distance', 0))
+    d['percentage_completed'].append(experiment_metrics.get('percentage_completed', 0))
+    d['image']['first_images'].append(first_image)
+    d['image']['path_x'].append(x_points)
+    d['image']['path_y'].append(y_points)
+    d['average_speed'].append(experiment_metrics.get('average_speed', 0))
+    d['position_deviation_mae'].append(experiment_metrics.get('position_deviation_mae', 0))
+    d['position_deviation_total_err'].append(experiment_metrics.get('position_deviation_total_err', 0))
+    d['mean_brain_iterations_real_time'].append(experiment_metrics.get('mean_brain_iterations_real_time', 0))
+    d['brain_iterations_frequency_real_time'].append(experiment_metrics.get('brain_iterations_frequency_real_time', 0))
+    d['target_brain_iterations_real_time'].append(experiment_metrics.get('target_brain_iterations_real_time', 0))
+    d['brain_iterations_frequency_simulated_time'].append(experiment_metrics.get('brain_iterations_frequency_simulated_time', 0))
+    d['target_brain_iterations_simulated_time'].append(experiment_metrics.get('target_brain_iterations_simulated_time', 0))
+    d['mean_inference_time'].append(experiment_metrics.get('mean_inference_time', 0))
+    d['frame_rate'].append(experiment_metrics.get('frame_rate', 0))
+    d['mean_brain_iterations_simulated_time'].append(experiment_metrics.get('mean_brain_iterations_simulated_time', 0))
+    d['real_time_factor'].append(experiment_metrics.get('real_time_factor', 0))
+    d['real_time_update_rate'].append(experiment_metrics.get('real_time_update_rate', 0))
+    d['experiment_total_simulated_time'].append(experiment_metrics.get('experiment_total_simulated_time', 0))
+    d['experiment_total_real_time'].append(experiment_metrics.get('experiment_total_real_time', 0))
+    if 'lap_seconds' in experiment_metrics:
+        d['lap_seconds'].append(experiment_metrics['lap_seconds'])
+        d['circuit_diameter'].append(experiment_metrics['circuit_diameter'])
+    else:
+        d['lap_seconds'].append(0.0)
+        d['circuit_diameter'].append(0.0)   
+        
 def read_ros1(bag_file: str, topics: list):
     """
     Read a ROS1 bag (.bag) and return a list of tuples (topic, msg, timestamp_s).
@@ -213,17 +291,6 @@ def read_ros2(bag_dir: str, topics: list, topic_type_map: dict):
             msg = data
         msgs.append((topic, msg, t / 1e9))
     return msgs
-
-
-topic_type_map = {
-  '/carla/ego_vehicle/odometry':           'nav_msgs/msg/Odometry',
-  '/carla/ego_vehicle/collision':          'carla_msgs/msg/CarlaCollisionEvent',
-  '/carla/ego_vehicle/lane_invasion':      'carla_msgs/msg/CarlaLaneInvasionEvent',
-  '/carla/ego_vehicle/speedometer':        'std_msgs/msg/Float32',
-  '/carla/ego_vehicle/vehicle_status':     'carla_msgs/msg/CarlaEgoVehicleStatus',
-  '/clock':                                'rosgraph_msgs/msg/Clock'
-}
-
   
 if __name__ == "__main__":
 
@@ -243,100 +310,76 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    bridge = CvBridge()
+    # bridge = CvBridge()
 
     baginput = args.input
     output = args.output
-
     all_data = {}
      
   
     if ros_version == "2":
-    # Collect all subdirectories that end with .bag and read them one by one
         bag_dirs = [
-            os.path.join(baginput, d)
-            for d in os.listdir(baginput)
-            # if os.path.isdir(os.path.join(baginput, d)) and d.endswith('.bag')
-             if os.path.isdir(os.path.join(baginput, d)) and
-                os.path.isfile(os.path.join(baginput, d, 'metadata.yaml')) and
-                any(f.endswith('.db3') for f in os.listdir(os.path.join(baginput, d)))
-            ]
+            os.path.join(baginput, d) for d in os.listdir(baginput)
+            if os.path.isdir(os.path.join(baginput, d)) and os.path.isfile(os.path.join(baginput, d, 'metadata.yaml'))
+        ]
         print(f"Detected {len(bag_dirs)} ROS2 bags under {baginput}")
+
         for bag_dir in bag_dirs:
             print("Reading ROS2 bag:", bag_dir)
             try:
                 available = list_topics_ros2(bag_dir)
-                topics_to_read = [t for t in topic_type_map.keys() if t in available]
+                topics_to_read = [t for t in topic_type_map if t in available]
                 bag_msgs = read_ros2(bag_dir, topics_to_read, topic_type_map)
-                process_bag_msgs_ros2(bag_msgs, all_data)
-            except Exception as excep:
-                print("Error reading bag:", bag_dir, excep)
-        
-    else:   
+                if '/metadata' in available and '/experiment_metrics' in available:
+                    process_bag_msgs_ros2_extended(bag_msgs, all_data)
+                else:
+                    process_bag_msgs_ros2(bag_msgs, all_data)
+            except Exception as e:
+                print("Error reading bag:", bag_dir, e)
+
+    else:
         bag_files = [os.path.join(baginput, f) for f in os.listdir(baginput) if f.endswith('.bag')]
-        print("DEtected {len(bag_files)} ROS1 bag files")
+        print(f"Detected {len(bag_files)} ROS1 bags under {baginput}")
+
         for bag_file in bag_files:
-            print('Reading bag: ' + bag_file)
+            print('Reading bag:', bag_file)
             try:
-                bag_msgs = read_ros1(bag_file, ['/F1ROS/odom','/metadata','/experiment_metrics','/first_image'])
+                bag_msgs = read_ros1(bag_file, ['/F1ROS/odom', '/metadata', '/experiment_metrics', '/first_image'])
                 process_bag_msgs_ros1(bag_msgs, all_data)
-            except Exception as excep:
-                print("Error reading bag: ", excep)
+            except Exception as e:
+                print("Error reading bag:", bag_file, e)
 
- 
-
+    # Save plots
     for world, metrics in all_data.items():
-        # Base directory for the world
-        base_dir   = os.path.join(output, 'bag_analysis_plots', world)
-        first_dir  = os.path.join(base_dir, 'first_images')
-        perf_dir   = os.path.join(base_dir, 'performances')
-        path_dir   = os.path.join(base_dir, 'path_followed')
-
-        # Make directories if they don't exist
+        base_dir = os.path.join(output, 'bag_analysis_plots', world)
+        first_dir = os.path.join(base_dir, 'first_images')
+        perf_dir = os.path.join(base_dir, 'performances')
+        path_dir = os.path.join(base_dir, 'path_followed')
         os.makedirs(first_dir, exist_ok=True)
-        os.makedirs(perf_dir,  exist_ok=True)
-        os.makedirs(path_dir,  exist_ok=True)
+        os.makedirs(perf_dir, exist_ok=True)
+        os.makedirs(path_dir, exist_ok=True)
 
         if 'image' in metrics:
-            images   = metrics['image']['first_images']
-            xs       = metrics['image']['path_x']
-            ys       = metrics['image']['path_y']
+            images = metrics['image']['first_images']
+            xs = metrics['image']['path_x']
+            ys = metrics['image']['path_y']
             for i, img in enumerate(images, start=1):
-            
                 cv2.imwrite(os.path.join(first_dir, f'Run_{i}.png'), img)
-                # Draw the path followed
-                fig = plt.figure(figsize=(10,5))
+                plt.figure(figsize=(10,5))
                 plt.scatter(xs[i-1], ys[i-1], zorder=3)
-                plt.title(f'Path F1 in "{world}", run {i}')
+                plt.title(f'Path in "{world}", run {i}')
                 plt.savefig(os.path.join(path_dir, f'Run_{i}.png'))
                 plt.close()
-            continue
 
-        if 'path_x' in metrics and 'path_y' in metrics:
-            xs = metrics['path_x']
-            ys = metrics['path_y']
-            for i, (xtraj, ytraj) in enumerate(zip(xs, ys), start=1):
-                fig = plt.figure(figsize=(10,5))
-                plt.scatter(xtraj, ytraj, zorder=3)
-                plt.title(f'Path CARLA in "{world}", run {i}')
-                plt.savefig(os.path.join(path_dir, f'Run_{i}.png'))
-                plt.close()
-           
         for key, values in metrics.items():
-            if key in ('image', 'path_x', 'path_y'):
+            if key in ('image', 'path_x', 'path_y') or not values:
                 continue
-            if not values:
+            if isinstance(values[0], (list, tuple, np.ndarray)):
                 continue
-            first = values[0]
-            if isinstance(first, (list, tuple, np.ndarray)):
-                continue
-
-            # Graphical bar plot representation
             labels = [f'Run_{i+1}' for i in range(len(values))]
-            fig = plt.figure(figsize=(10,5))
+            plt.figure(figsize=(10,5))
             plt.bar(labels, values, width=0.4)
             plt.ylabel(key)
             plt.title(f'Performance in "{world}" — {key}')
             plt.savefig(os.path.join(perf_dir, f'{key}.png'))
             plt.close()
-
