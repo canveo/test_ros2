@@ -52,7 +52,7 @@ Behaviors:
         World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py
         RandomSpawnPoint: False
     Dataset:
-        In: '/tmp/my_bag/'
+        In: '/tmp/my_bag'
         Out: ''
     Stats:
         Out: './'

@@ -487,6 +487,7 @@ class Toolbar(QWidget):
         brain_label.setMaximumWidth(100)
         if self.configuration.brain_path:
             current_brain = self.configuration.brain_path.split('/')[-1].split(".")[0]  # get brain name without .py
+            
         else:
             current_brain = ''
         self.current_brain_label = QLabel('Current brain: <b><FONT COLOR = lightgreen>' + current_brain + '</b>')
@@ -496,9 +497,15 @@ class Toolbar(QWidget):
         self.brain_combobox = QComboBox()
         self.brain_combobox.setEnabled(True)
         environment_subpath = self.configuration.environment + '/' if self.configuration.environment is not None else ""
-        brains = [file.split(".")[0] for file
-                  in os.listdir(brains_path + environment_subpath + self.configuration.robot_type)
-                  if file.endswith('.py') and file.split(".")[0] != '__init__']
+        
+        if self.configuration.robot_type == "CARLA":
+            brains = [file.split(".")[0] for file
+                    in os.listdir(brains_path + environment_subpath + self.configuration.robot_type)
+                    if file.endswith('.py') and file.split(".")[0] != '__init__']
+        else:
+            brains = [file.split(".")[0] for file
+                    in os.listdir(brains_path + environment_subpath + '/gazebo/' + self.configuration.robot_type)
+                    if file.endswith('.py') and file.split(".")[0] != '__init__']
         self.brain_combobox.addItem('')
         self.brain_combobox.addItems(brains)
         index = self.brain_combobox.findText(current_brain, Qt.MatchFixedString)
