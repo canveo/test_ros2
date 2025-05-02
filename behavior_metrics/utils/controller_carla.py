@@ -292,6 +292,9 @@ class ControllerCarla:
             'ego_vehicle': self.ego_vehicle.type_id,
             'vehicles_number': len(self.world.get_actors().filter('vehicle.*')),
             'async_mode': self.pilot.configuration.async_mode,
+            'collision_actor_ids': [],    # DEBUG
+            'effective_completed_distance': [], # DEBUG
+            'completed_distance': [], # DEBUG
             'weather': {
                 'cloudiness': self.weather.cloudiness,
                 'precipitation': self.weather.precipitation,
@@ -326,7 +329,8 @@ class ControllerCarla:
 
         self.metrics_record_dir_path = metrics_record_dir_path
         os.mkdir(self.metrics_record_dir_path + self.time_str)
-        self.experiment_metrics_bag_filename = self.metrics_record_dir_path + self.time_str + '/' + self.time_str + '.bag'
+        # self.experiment_metrics_bag_filename = self.metrics_record_dir_path + self.time_str  + '/' + self.time_str  + '.bag'
+        self.experiment_metrics_bag_filename = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str)
 
         topics = [
             '/carla/npc_vehicle_1/odometry',
@@ -411,7 +415,10 @@ class ControllerCarla:
         self.experiment_metrics['collisions_walker'] = 0
         self.experiment_metrics['collisions_static'] = 0
 
-        collision_actor_ids = self.experiment_metrics['collision_actor_ids']
+        collision_actor_ids = self.experiment_metrics['collision_actor_ids']  
+
+        collision_actor_ids = self.experiment_metrics.get('collision_actor_ids', [])
+
         for actor_id in collision_actor_ids:
             actor = self.world.get_actor(actor_id)
             if actor:
