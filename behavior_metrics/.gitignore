@@ -7,6 +7,7 @@
 **/logs
 **.bag
 bag_analysis/
+bag_examples/
 core
 tmp_*
 carla_birdeye_view/
