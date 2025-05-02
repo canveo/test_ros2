@@ -79,8 +79,13 @@ def check_args(argv):
                             Colors.OKBLUE, Colors.ENDC))
 
     args = parser.parse_args()
+    # get ROS version from environment variable
+    ros_version = os.environ.get('ROS_VERSION', '2')  # Default is ROS 2
+    if ros_version not in ['1', '2']:
+        logger.error('Invalid ROS_VERSION environment variable. Must be "1" or "2". Killing program...')
+        sys.exit(-1)
 
-    config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False}
+    config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False, 'ros_version': int(ros_version)}
     if args.config:
         config_data['config'] = []
         for config_file in args.config:
@@ -103,6 +108,31 @@ def check_args(argv):
 
     return config_data
 
+
+def init_node(ros_version):
+    """
+    Initializes the ROS node based on the selected version.
+    
+    Arguments:
+        ros_version (str): The ROS version ("ros1" or "ros2").
+    
+    Returns:
+        For ROS1: returns None (as rospy manages the node globally).
+        For ROS2: returns the created node.
+    """
+    if ros_version == 1:
+        import rospy
+        rospy.init_node('my_ros1_node')
+        return None  # rospy maneja la instancia globalmente
+    elif ros_version == 2:
+        import rclpy
+        rclpy.init()
+        node = rclpy.create_node('my_ros2_node')  
+        logger.info('ROS2 node initialized')
+        return node
+    else:
+        logger.error(f"Unsupported ROS version: {ros_version}")
+        sys.exit(-1)
 
 def conf_window(configuration):
     """Gui windows for configuring the app. If not configuration file specified when launched, this windows appears,
@@ -132,7 +162,7 @@ def conf_window(configuration):
         pass
 
 
-def main_win(configuration, controller):
+def main_win(configuration, controller, node):
     """shows the Qt main window of the application
 
     Arguments:
@@ -146,7 +176,7 @@ def main_win(configuration, controller):
         app = QApplication(sys.argv)
         main_window = ParentWindow()
 
-        views_controller = ViewsController(main_window, configuration, controller)
+        views_controller = ViewsController(main_window, configuration, controller, node)
         views_controller.show_main_view(True)
 
         main_window.show()
@@ -161,11 +191,13 @@ def main():
 
     # Check and generate configuration
     config_data = check_args(sys.argv)
+    node = init_node(config_data['ros_version']) # Initialize the ROS node shared by all the application
+    
     for config in config_data['config']:
         app_configuration = Config(config)
 
         # Create controller of model-view
-        controller = ControllerGazebo()
+        controller = ControllerGazebo(node)
 
         # If there's no config, configure the app through the GUI
         if app_configuration.empty and config_data['gui']:
@@ -194,14 +226,15 @@ def main():
 
         if not config_data['script']:
             # Launch control
-            pilot = PilotGazebo(app_configuration, controller, app_configuration.brain_path)
+            
+            pilot = PilotGazebo(node, app_configuration, controller, app_configuration.brain_path)
             pilot.daemon = True
             pilot.start()
             logger.info('Executing app')
 
             # If GUI specified, launch it. Otherwise don't
             if config_data['gui']:
-                main_win(app_configuration, controller)
+                main_win(app_configuration, controller,node)
             else:
                 pilot.join()
 

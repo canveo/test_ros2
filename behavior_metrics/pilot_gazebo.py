@@ -12,6 +12,8 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
+import threading
 import threading
 import time
 
@@ -55,14 +57,14 @@ class PilotGazebo(threading.Thread):
         brains {brains.brains_handler.Brains} -- Brains controller instance
     """
 
-    def __init__(self, configuration, controller, brain_path):
+    def __init__(self, node, configuration, controller, brain_path):
         """Constructor of the pilot class
 
         Arguments:
             configuration {utils.configuration.Config} -- Configuration instance of the application
             controller {utils.controller.Controller} -- Controller instance of the MVC of the application
         """
-
+        self.node = node
         self.controller = controller
         self.controller.set_pilot(self)
         self.configuration = configuration
@@ -107,9 +109,10 @@ class PilotGazebo(threading.Thread):
     def initialize_robot(self):
         """Initialize robot interfaces (sensors and actuators) and its brain from configuration"""
         self.stop_interfaces()
+        
         if self.robot_type != 'drone':
-            self.actuators = Actuators(self.configuration.actuators)
-            self.sensors = Sensors(self.configuration.sensors)
+            self.actuators = Actuators(self.configuration.actuators,self.node)
+            self.sensors = Sensors(self.configuration.sensors,self.node)
         if hasattr(self.configuration, 'experiment_model') and type(self.configuration.experiment_model) != list:
             self.brains = Brains(self.sensors, self.actuators, self.brain_path, self.controller,
                                  self.configuration.experiment_model, self.configuration.brain_kwargs)
@@ -163,7 +166,7 @@ class PilotGazebo(threading.Thread):
                 self.brain_iterations_simulated_time.append(self.ros_clock_time - start_time_ros)
         self.execution_completed = True
         if ros_version == '2':
-            self.ros2_node.destroy_subscription(self.clock_subscriber)
+            self.node.destroy_subscription(self.clock_subscriber)
         else:    
             self.clock_subscriber.unregister()
         self.stats_process.terminate()
@@ -290,10 +293,8 @@ class PilotGazebo(threading.Thread):
             time.sleep(1)
             poll = self.stats_process.poll()
 
-        
         if ros_version == '2':
-            self.ros2_node = Node("pilot_gazebo")
-            self.clock_subscriber = self.ros2_node.create_subscription(Clock, "/clock", self.clock_callback,1)
+            self.clock_subscriber = self.node.create_subscription(Clock, "/clock", self.clock_callback,1)
         else:    
             self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)
         
