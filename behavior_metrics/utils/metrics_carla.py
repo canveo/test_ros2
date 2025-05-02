@@ -56,10 +56,44 @@ def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoin
             ValueError(f"{experiment_metrics_bag_filename} isn't a file!")
             return {}
 
-    try:
-        bag_reader = bagreader(experiment_metrics_bag_filename)
-    except rosbag.bag.ROSBagException:
-        return {}
+    # try:
+    #     bag_reader = bagreader(experiment_metrics_bag_filename)
+    # except rosbag.bag.ROSBagException:
+    #     return {}
+    ros_version = os.environ.get('ROS_VERSION', "2")  # Asume ROS2 por defecto
+
+    bag_reader = None
+
+    if ros_version == "2":
+        try:
+            import rosbag2_py
+
+            storage_options = rosbag2_py.StorageOptions(
+                uri=experiment_metrics_bag_filename,
+                storage_id='sqlite3'  # o el storage que uses
+            )
+            converter_options = rosbag2_py.ConverterOptions(
+                input_serialization_format='cdr',
+                output_serialization_format='cdr'
+            )
+            reader = rosbag2_py.SequentialReader()
+            reader.open(storage_options, converter_options)
+            bag_reader = reader
+        except Exception as e:
+            print("Error leyendo bag en ROS2:", e)
+            bag_reader = None
+
+    else:
+        try:
+            import rosbag
+            bag_reader = rosbag.Bag(experiment_metrics_bag_filename)
+        except rosbag.ROSBagException as e:
+            print("Error leyendo bag en ROS1:", e)
+            bag_reader = None
+
+    if bag_reader is None:
+        # dont open the bag file
+        result = {}
 
     csv_files = []
     for topic in bag_reader.topics:
