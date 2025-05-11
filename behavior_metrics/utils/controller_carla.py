@@ -28,6 +28,8 @@ import json
 import math
 from utils.logger import logger
 
+import pickle
+
 ros_version = os.environ.get('ROS_VERSION',"2")
 
 if ros_version == "2":
@@ -103,9 +105,10 @@ class ControllerCarla:
             if self.ego_vehicle is None:
                 logger.info("Waiting for vehicle with role_name 'ego_vehicle'")
                 time.sleep(1)  # sleep for 1 second before checking again
+        # TODO: agregar solo waypoints de la ruta deseada
         self.map_waypoints = self.carla_map.generate_waypoints(0.5)
         self.weather = self.world.get_weather()
-        
+               
     # GUI update
     def update_frame(self, frame_id, data):
         """Update the data to be retrieved by the view.
@@ -182,17 +185,6 @@ class ControllerCarla:
             topics {list} -- List of topics to be recorde
             dataset_name {str} -- Path of the resulting bag file
         """
-
-        # if not self.recording:
-        #     logger.info("Recording bag at: {}".format(dataset_name))
-        #     self.recording = True
-        #     command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
-        #     command = shlex.split(command)
-        #     with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
-        #         self.rosbag_proc = subprocess.Popen(command, stdout=out, stderr=err)
-        # else:
-        #     logger.info("Rosbag already recording")
-        #     self.stop_record()
         if self.recording:
             logger.info("Rosbag already recording")
             self.stop_record()
@@ -212,15 +204,6 @@ class ControllerCarla:
 
     def stop_record(self):
         """Stop the rosbag recording process."""
-        # if self.rosbag_proc and self.recording:
-        #     logger.info("Stopping bag recording")
-        #     self.recording = False
-        #     command = "rosnode kill /behav_bag"
-        #     command = shlex.split(command)
-        #     with open("logs/.roslaunch_stdout.log", "w") as out, open("logs/.roslaunch_stderr.log", "w") as err:
-        #         subprocess.Popen(command, stdout=out, stderr=err)
-        # else:
-        #     logger.info("No bag recording")
         if not self.recording or not self.rosbag_proc:
             logger.info("No bag recording")
             return
@@ -292,9 +275,6 @@ class ControllerCarla:
             'ego_vehicle': self.ego_vehicle.type_id,
             'vehicles_number': len(self.world.get_actors().filter('vehicle.*')),
             'async_mode': self.pilot.configuration.async_mode,
-            'collision_actor_ids': [],    # DEBUG
-            'effective_completed_distance': [], # DEBUG
-            'completed_distance': [], # DEBUG
             'weather': {
                 'cloudiness': self.weather.cloudiness,
                 'precipitation': self.weather.precipitation,
@@ -329,9 +309,8 @@ class ControllerCarla:
 
         self.metrics_record_dir_path = metrics_record_dir_path
         os.mkdir(self.metrics_record_dir_path + self.time_str)
-        # self.experiment_metrics_bag_filename = self.metrics_record_dir_path + self.time_str  + '/' + self.time_str  + '.bag'
         self.experiment_metrics_bag_filename = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str)
-
+        
         topics = [
             '/carla/npc_vehicle_1/odometry',
             '/carla/ego_vehicle/odometry',
@@ -350,123 +329,59 @@ class ControllerCarla:
         command = shlex.split(command)
         with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             self.proc = subprocess.Popen(command, stdout=out, stderr=err)
+            
+        # with open(self.experiment_metrics_bag_filename + '_metadata.json', 'w') as f:
+        #     json.dump(self.experiment_metrics, f)
+        logger.info("Started metrics bag recording")
 
     def stop_recording_metrics(self, termination_code=None, route_length=None):
         logger.info("Stopping metrics bag recording")
         end_time = time.time()
 
-        mean_brain_iterations_real_time = sum(self.pilot.brain_iterations_real_time) / len(self.pilot.brain_iterations_real_time)
-        brain_iterations_frequency_real_time = 1 / mean_brain_iterations_real_time
-
-        mean_brain_iterations_simulated_time = sum(self.pilot.brain_iterations_simulated_time) / len(self.pilot.brain_iterations_simulated_time)
-        brain_iterations_frequency_simulated_time = 1 / mean_brain_iterations_simulated_time
-
-        target_brain_iterations_real_time = 1 / (self.pilot.time_cycle / 1000)
-
-        if hasattr(self.pilot.brains.active_brain, 'cameras_first_images') and self.pilot.brains.active_brain.cameras_first_images != []:
-            first_images =  self.pilot.brains.active_brain.cameras_first_images
-            last_images = self.pilot.brains.active_brain.cameras_last_images
-        else:
-            first_images = []
-            last_images = []
-        
         if ros_version == "2":
             command = "ros2 node kill /behav_metrics_bag"
+            self.proc.terminate()
+            self.proc.wait()
+            logger.info("Stopped bag recording")
         else:
             command = "rosnode kill /behav_metrics_bag"
         command = shlex.split(command)
         with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             subprocess.Popen(command, stdout=out, stderr=err)
 
-        # Wait for rosbag file to be closed. Otherwise it causes error
-        while os.path.isfile(self.experiment_metrics_bag_filename + '.active'):
-            pass
-        
-        if hasattr(self.pilot.brains.active_brain, 'inference_times'):
-            self.pilot.brains.active_brain.inference_times = self.pilot.brains.active_brain.inference_times[10:-10]
-            self.experiment_metrics['gpu_mean_inference_time'] = sum(self.pilot.brains.active_brain.inference_times) / len(self.pilot.brains.active_brain.inference_times)
-            self.experiment_metrics['gpu_inference_frequency'] = 1 / self.experiment_metrics['gpu_mean_inference_time']
-            self.experiment_metrics['gpu_inference'] = self.pilot.brains.active_brain.gpu_inference
-        else:
-            self.experiment_metrics['gpu_mean_inference_time'] = 0
-            self.experiment_metrics['gpu_inference_frequency'] = 0
-            self.experiment_metrics['gpu_inference'] = 0
+        timeout_counter = 20
+        bag_active_file = self.experiment_metrics_bag_filename + '.active'
+        while os.path.isfile(bag_active_file) and timeout_counter > 0:
+            time.sleep(1)
+            timeout_counter -= 1
 
-        if hasattr(self.pilot.brains.active_brain, 'bird_eye_view_images'):
-            self.experiment_metrics['bird_eye_view_images'] = self.pilot.brains.active_brain.bird_eye_view_images
-            self.experiment_metrics['bird_eye_view_unique_images'] = self.pilot.brains.active_brain.bird_eye_view_unique_images
-            self.experiment_metrics['bird_eye_view_unique_images_percentage'] = self.experiment_metrics['bird_eye_view_unique_images'] / self.experiment_metrics['bird_eye_view_images']
-        else:
-            self.experiment_metrics['bird_eye_view_images'] = 0
-            self.experiment_metrics['bird_eye_view_unique_images'] = 0
-            self.experiment_metrics['bird_eye_view_unique_images_percentage'] = 0
+        if timeout_counter <= 0:
+            logger.warning(f"Timeout: {bag_active_file} not removed in time.")
+            
+        experiment_metrics_filename = self.metrics_record_dir_path + self.time_str + '/' + self.time_str
+        try:
+            self.experiment_metrics = metrics_carla.get_metrics(
+                self.experiment_metrics,
+                self.experiment_metrics_bag_filename,
+                self.map_waypoints,
+                experiment_metrics_filename,
+                self.pilot.configuration
+            )
+            
+        except Exception as e:
+            logger.error(f"Error leyendo bag en ROS2 <<<<<: {e}")
+            self.experiment_metrics = { }
 
-        self.experiment_metrics['brain_iterations_simulated_time'] = len(self.pilot.brain_iterations_simulated_time)
-        self.experiment_metrics['mean_brain_iterations_real_time'] = mean_brain_iterations_real_time
-        self.experiment_metrics['brain_iterations_frequency_real_time'] = brain_iterations_frequency_real_time
-        self.experiment_metrics['target_brain_iterations_real_time'] = target_brain_iterations_real_time
-        self.experiment_metrics['mean_brain_iterations_simulated_time'] = mean_brain_iterations_simulated_time
-        self.experiment_metrics['brain_iterations_frequency_simulated_time'] = brain_iterations_frequency_simulated_time
         self.experiment_metrics['experiment_total_real_time'] = end_time - self.pilot.pilot_start_time
 
-        experiment_metrics_filename = self.metrics_record_dir_path + self.time_str + '/' + self.time_str
-        self.experiment_metrics = metrics_carla.get_metrics(self.experiment_metrics, self.experiment_metrics_bag_filename, self.map_waypoints, experiment_metrics_filename, self.pilot.configuration)
-        self.experiment_metrics['collisions_vehicle'] = 0
-        self.experiment_metrics['collisions_walker'] = 0
-        self.experiment_metrics['collisions_static'] = 0
+        experiment_json_path = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str + '.json')
+        os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
+        with open(experiment_json_path, 'w') as f:
+            json.dump(self.experiment_metrics, f)
 
-        collision_actor_ids = self.experiment_metrics['collision_actor_ids']  
-
-        collision_actor_ids = self.experiment_metrics.get('collision_actor_ids', [])
-
-        for actor_id in collision_actor_ids:
-            actor = self.world.get_actor(actor_id)
-            if actor:
-                actor_type = actor.type_id.split('.')[0]
-                if actor_type == 'vehicle':
-                    self.experiment_metrics['collisions_vehicle'] += 1
-                elif actor_type == 'walker':
-                    self.experiment_metrics['collisions_walker'] += 1
-                else:
-                    self.experiment_metrics['collisions_static'] += 1
-            else:
-                print(f"No actor found with ID {actor_id}")
-
-        if hasattr(self.pilot.brains.active_brain, 'red_light_counter'):
-            self.experiment_metrics['traffic_light_infractions'] = self.pilot.brains.active_brain.red_light_counter
-            self.experiment_metrics['traffic_light_infractions_per_km'] = self.experiment_metrics['traffic_light_infractions'] / (self.experiment_metrics['effective_completed_distance']/1000)
-
-        if route_length is not None:
-            self.experiment_metrics['route_completion'] = self.experiment_metrics['effective_completed_distance'] / route_length
-        
-        wrong_turn_counter = 0
-        time_out_counter = 0
-        if termination_code is not None:
-            if termination_code == 1:
-                self.experiment_metrics['termination cause'] = 'success'
-            elif termination_code == 2:
-                wrong_turn_counter += 1
-                self.experiment_metrics['termination cause'] = 'wrong turn'
-            elif termination_code == 3:
-                time_out_counter += 1
-                self.experiment_metrics['termination cause'] = 'time out'
-        
-        if 'route_completion' in self.experiment_metrics.keys() and 'traffic_light_infractions' in self.experiment_metrics.keys() and termination_code is not None:
-            self.experiment_metrics['driving score'] = self.experiment_metrics['route_completion'] * \
-                                                    CARLA_INFRACTION_PENALTIES['collision_vehicle']**self.experiment_metrics['collisions_vehicle'] * \
-                                                    CARLA_INFRACTION_PENALTIES['collision_static']**self.experiment_metrics['collisions_static'] * \
-                                                    CARLA_INFRACTION_PENALTIES['collision_walker']**self.experiment_metrics['collisions_walker'] * \
-                                                    CARLA_INFRACTION_PENALTIES['red_light']**self.experiment_metrics['traffic_light_infractions'] * \
-                                                    CARLA_INFRACTION_PENALTIES['wrong_turn']**wrong_turn_counter * \
-                                                    CARLA_INFRACTION_PENALTIES['time_out']**time_out_counter
-        self.save_metrics(first_images, last_images)
-
-        for key, value in self.experiment_metrics.items():
-            logger.info('* ' + str(key) + ' ---> ' + str(value))
-
+        logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
         logger.info("Stopped metrics bag recording")
-
-
+   
     def save_metrics(self, first_images, last_images):        
         with open(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + '.json', 'w') as f:
             json.dump(self.experiment_metrics, f)
