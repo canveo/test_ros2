@@ -184,21 +184,23 @@ def process_bag_msgs_ros2_extended(bag_msgs, all_data):
     bridge = CvBridge()
     x_points, y_points = [], []
     metadata = {}
-    experiments_metrics = {}
+    experiment_metrics = {}
     first_image = np.zeros((1,1))
-    
-    
+        
     for topic, msg, t in bag_msgs:
         if topic == '/carla/ego_vehicle/odometry':
-            pos = msg.pose.pose.postions
+            pos = msg.pose.pose.position
             x_points.append(pos.x)
             y_points.append(pos.y)
-        elif topic == '/metabridgedata':
+        elif topic == '/metadata':
             metadata = json.loads(msg.data)
         elif topic == '/experiment_metrics':
             experiment_metrics = json.loads(msg.data)
+            print("[DEBUG] experiments_metrics leido", experiment_metrics)
         elif topic == '/first_image':
-            fisrt_image = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            # first_image = bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+            first_image = bridge.imgmsg_to_cv2(msg, encoding='bgr8')
+
             
     world = metadata.get('world', 'carla').split('.')[0]
     _fill_all_data(world, all_data, x_points, y_points, experiment_metrics, first_image)
@@ -291,6 +293,37 @@ def read_ros2(bag_dir: str, topics: list, topic_type_map: dict):
             msg = data
         msgs.append((topic, msg, t / 1e9))
     return msgs
+
+def save_metrics_to_json(all_data, output_dir):
+    """
+    Save processed metrics to a JSON file for each world.
+    - all_data: dictionary of processed metrics
+    - output_dir: base directory to save the JSON files
+    """
+   
+    json_dir = os.path.join(output_dir, 'metrics_json')
+    os.makedirs(json_dir, exist_ok=True)
+
+    for world, metrics in all_data.items():
+        output_path = os.path.join(json_dir, f"{world}_metrics.json")
+        # Convertir datos de tipo numpy a tipo básico (listas normales)
+        def clean(obj):
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: clean(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [clean(e) for e in obj]
+            else:
+                return obj
+
+        cleaned_metrics = clean(metrics)
+        
+        with open(output_path, 'w') as f:
+            json.dump(cleaned_metrics, f, indent=4)
+
+    print(f"\n All metrics saved in: {json_dir}")
+
   
 if __name__ == "__main__":
 
@@ -330,6 +363,7 @@ if __name__ == "__main__":
                 available = list_topics_ros2(bag_dir)
                 topics_to_read = [t for t in topic_type_map if t in available]
                 bag_msgs = read_ros2(bag_dir, topics_to_read, topic_type_map)
+                process_bag_msgs_ros2_extended(bag_msgs, all_data)
                 if '/metadata' in available and '/experiment_metrics' in available:
                     process_bag_msgs_ros2_extended(bag_msgs, all_data)
                 else:
@@ -358,12 +392,25 @@ if __name__ == "__main__":
         os.makedirs(first_dir, exist_ok=True)
         os.makedirs(perf_dir, exist_ok=True)
         os.makedirs(path_dir, exist_ok=True)
+        
+        
 
         if 'image' in metrics:
+            print("Saving first images")
             images = metrics['image']['first_images']
             xs = metrics['image']['path_x']
             ys = metrics['image']['path_y']
             for i, img in enumerate(images, start=1):
+                if img is None or img.size == 0:
+                    print(f"[WARN] Imagen vacía o nula en ejecución {i}, se omite.")
+                    continue
+                if np.max(img) == 0:
+                    print(f"[WARN] Imagen completamente negra en ejecución {i}, se omite.")
+                    continue
+                if img.dtype != np.uint8:
+                    # Normaliza y convierte a 8-bit para guardar sin problemas
+                    img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)  # DEBUG
+                    img = img.astype(np.uint8)       # DEBUG
                 cv2.imwrite(os.path.join(first_dir, f'Run_{i}.png'), img)
                 plt.figure(figsize=(10,5))
                 plt.scatter(xs[i-1], ys[i-1], zorder=3)
@@ -383,3 +430,9 @@ if __name__ == "__main__":
             plt.title(f'Performance in "{world}" — {key}')
             plt.savefig(os.path.join(perf_dir, f'{key}.png'))
             plt.close()
+            
+    # Save metrics to JSON
+    save_metrics_to_json(all_data, output)
+    print(f"\n All plots saved in: {output}")
+            
+        

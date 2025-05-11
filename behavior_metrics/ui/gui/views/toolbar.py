@@ -24,7 +24,7 @@ else:
     import rospy    
 
 from PyQt5.QtCore import (QPropertyAnimation, QSequentialAnimationGroup, QSize,
-                          Qt)
+                          Qt, QTimer)
 from PyQt5.QtGui import QColor, QPalette, QPixmap
 from PyQt5.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog,
                              QFrame, QGraphicsOpacityEffect, QGridLayout,
@@ -661,11 +661,21 @@ class Toolbar(QWidget):
         self.recording_stats_label.hide()
         self.controller.stop_recording_metrics()
 
+        # [DEBUG] se cierra la interfaz sin que que se guarde stats
         if type(self.controller) == controller_carla.ControllerCarla:
             dialog = CARLAStatsWindow(self, self.controller)
         else:
             dialog = StatsWindow(self, self.controller)
         dialog.show()
+        # QTimer.singleShot(2000, lambda: self.show_stats_window())
+        
+    # def show_stats_window(self):  # [DEBUG]
+    #     """Show stats window after recording stops"""
+    #     if type(self.controller) == controller_carla.ControllerCarla:
+    #         dialog = CARLAStatsWindow(self, self.controller)
+    #     else:
+    #         dialog = StatsWindow(self, self.controller)
+    #     dialog.show()
 
     def selection_change_brain(self, i):
         # print "Items in the list are :"
