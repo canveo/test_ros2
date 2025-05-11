@@ -48,6 +48,8 @@ def circuit_distance_completed(checkpoints, lap_point):
 
 def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoints, experiment_metrics_filename, config):
     
+    print('Experiment metrics bag filename:', experiment_metrics_bag_filename)
+    
     time_counter = 5
     while not os.path.exists(experiment_metrics_bag_filename):
         time.sleep(1)
@@ -56,21 +58,21 @@ def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoin
             ValueError(f"{experiment_metrics_bag_filename} isn't a file!")
             return {}
 
-    # try:
-    #     bag_reader = bagreader(experiment_metrics_bag_filename)
-    # except rosbag.bag.ROSBagException:
-    #     return {}
-    ros_version = os.environ.get('ROS_VERSION', "2")  # Asume ROS2 por defecto
+    ros_version = os.environ.get('ROS_VERSION', "2")  
 
     bag_reader = None
 
     if ros_version == "2":
         try:
             import rosbag2_py
+            from rclpy.serialization import deserialize_message
+            from rosidl_runtime_py.utilities import get_message
+
+            rosbag_dir = experiment_metrics_bag_filename  
 
             storage_options = rosbag2_py.StorageOptions(
-                uri=experiment_metrics_bag_filename,
-                storage_id='sqlite3'  # o el storage que uses
+                uri=rosbag_dir,
+                storage_id='sqlite3'
             )
             converter_options = rosbag2_py.ConverterOptions(
                 input_serialization_format='cdr',
@@ -79,33 +81,47 @@ def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoin
             reader = rosbag2_py.SequentialReader()
             reader.open(storage_options, converter_options)
             bag_reader = reader
-        except Exception as e:
-            print("Error leyendo bag en ROS2:", e)
-            bag_reader = None
 
+            topic_types = {t.name: t.type for t in bag_reader.get_all_topics_and_types()}
+            # data_by_topic = {topic: [] for topic in topic_types.keys()}
+            data_by_topic = {topic: [] for topic in topic_types}
+
+            while bag_reader.has_next():
+                topic, data, t = bag_reader.read_next()
+                msg_type_str = topic_types[topic]  
+                msg_type = get_message(msg_type_str)
+                msg = deserialize_message(data, msg_type)
+                data_by_topic[topic].append(msg)
+
+            print("Topics in bag:", list(data_by_topic.keys()))
+            csv_files = data_by_topic  
+            
+        except Exception as e:
+            print("Error procesando mensajes del bag en ROS2:", e)
+            return {}
     else:
         try:
             import rosbag
             bag_reader = rosbag.Bag(experiment_metrics_bag_filename)
         except rosbag.ROSBagException as e:
-            print("Error leyendo bag en ROS1:", e)
+            print("Error reading bag file in ROS 1:", e)
             bag_reader = None
+            
+    required_topics = ['/carla/ego_vehicle/odometry', '/carla/ego_vehicle/speedometer', '/carla/ego_vehicle/vehicle_status', '/clock']
+    if not all(topic in data_by_topic for topic in required_topics):
+        print("Faltan tópicos necesarios en el bag.")
+        return {}
 
-    if bag_reader is None:
-        # dont open the bag file
-        result = {}
-
-    csv_files = []
-    for topic in bag_reader.topics:
-        data = bag_reader.message_by_topic(topic)
-        csv_files.append(data)
-
-    data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/carla-ego_vehicle-odometry.csv'
-    dataframe_pose = pd.read_csv(data_file)
+    odometry_msgs = data_by_topic['/carla/ego_vehicle/odometry']
     checkpoints = []
-    for index, row in dataframe_pose.iterrows():
-        checkpoints.append(row)
-
+    for msg in odometry_msgs:
+        checkpoints.append({
+            'pose.pose.position.x': msg.pose.pose.position.x,
+            'pose.pose.position.y': msg.pose.pose.position.y,
+            'Time': 0
+        })
+    dataframe_pose = pd.DataFrame(checkpoints)
+ 
     if config.task == 'follow_lane_traffic':
         data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/carla-npc_vehicle_1-odometry.csv'
         dataframe_pose = pd.read_csv(data_file)
@@ -113,40 +129,39 @@ def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoin
         for index, row in dataframe_pose.iterrows():
             checkpoints_2.append(row)
 
-    data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/clock.csv'
-    dataframe_clock = pd.read_csv(data_file)
     clock_points = []
-    for index, row in dataframe_clock.iterrows():
-        clock_points.append(row)
+
+    dataframe_clock =  pd.DataFrame([{'clock.secs': msg.clock.sec, 'Time': i} for i, msg in enumerate(data_by_topic['/clock'])])
+    clock_points = dataframe_clock.to_dict('records')
     start_clock = clock_points[0]
     seconds_start = start_clock['clock.secs']
     seconds_end = clock_points[len(clock_points) - 1]['clock.secs']
 
     collision_points = []
-    if '/carla/ego_vehicle/collision' in bag_reader.topics:
-        data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/carla-ego_vehicle-collision.csv'
-        dataframe_collision = pd.read_csv(data_file)
-        for index, row in dataframe_collision.iterrows():
-            collision_points.append(row)
+    if 'carla/ego_vehicle/collision' in data_by_topic:
+        dataframe_collision =  pd.DataFrame([{'Time': i} for i, msg in enumerate(data_by_topic['carla/ego_vehicle/collision'])])
+        collision_points = dataframe_collision.to_dict('records')
+        
 
-    lane_invasion_points = []
-    if '/carla/ego_vehicle/lane_invasion' in bag_reader.topics:
-        data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/carla-ego_vehicle-lane_invasion.csv'
-        dataframe_lane_invasion = pd.read_csv(data_file, on_bad_lines='skip')
-        for index, row in dataframe_lane_invasion.iterrows():
-            lane_invasion_points.append(row)
 
-    data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/carla-ego_vehicle-speedometer.csv'
-    dataframe_speedometer = pd.read_csv(data_file)
+    if '/carla/ego_vehicle/lane_invasion'  in data_by_topic:
+        dataframe_lane_invasion =  pd.DataFrame([{'Time': i} for i, msg in enumerate(data_by_topic['/carla/ego_vehicle/lane_invasion' ])])
+        lane_invasion_points = dataframe_lane_invasion.to_dict('records')
+
     speedometer_points = []
-    for index, row in dataframe_speedometer.iterrows():
-        speedometer_points.append(row)
+    dataframe_speedometer =  pd.DataFrame([{'data': msg.data, 'Time': i} for i, msg in enumerate(data_by_topic['/carla/ego_vehicle/speedometer'])])
+    speedometer_points = dataframe_speedometer.to_dict('records')
 
-    data_file = experiment_metrics_bag_filename.split('.bag')[0] + '/carla-ego_vehicle-vehicle_status.csv'
-    dataframe_vehicle_status = pd.read_csv(data_file)
     vehicle_status_points = []
-    for index, row in dataframe_vehicle_status.iterrows():
-        vehicle_status_points.append(row)
+    dataframe_vehicle_status =  pd.DataFrame([{
+        'control.throttle': msg.control.throttle,
+        'control.steer': msg.control.steer,
+        'control.brake': msg.control.brake,
+        } for i, msg in enumerate(data_by_topic['/carla/ego_vehicle/vehicle_status'])])
+    vehicle_status_points = dataframe_vehicle_status.to_dict('records')
+    
+    if map_waypoints:
+        experiment_metrics = get_percentage_completed(experiment_metrics, checkpoints, map_waypoints)
 
     if len(checkpoints) > 1:
         starting_point = checkpoints[0]
@@ -167,7 +182,7 @@ def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoin
 
         experiment_metrics = get_position_deviation_and_effective_completed_distance(experiment_metrics, checkpoints, map_waypoints, experiment_metrics_filename, speedometer_points, collisions_checkpoints, lane_invasion_checkpoints)
         experiment_metrics['completed_laps'] = get_completed_laps(checkpoints, starting_point)
-        shutil.rmtree(experiment_metrics_bag_filename.split('.bag')[0])
+        # shutil.rmtree(experiment_metrics_bag_filename.split('.bag')[0]) # DEBUG
         return experiment_metrics
     else:
         return {}
@@ -195,6 +210,94 @@ def get_distance_completed(experiment_metrics, checkpoints):
     experiment_metrics['completed_distance'] = circuit_distance_completed(checkpoints, end_point)
     return experiment_metrics
 
+def get_percentage_completed(experiment_metrics, checkpoints, map_waypoints):
+    # Covert waypoints (CARLA waypoitnts) into 'perfect_lap_checkpoints' structure
+    perfect_lap_checkpoints = [{
+        'pose.pose.position.x': wp.transform.location.x,
+        'pose.pose.position.y': wp.transform.location.y
+    } for wp in map_waypoints]
+
+    # starting_point = checkpoints[0]
+    first_checkpoint = np.array([
+        checkpoints[0]['pose.pose.position.x'],
+        checkpoints[0]['pose.pose.position.y']
+    ])
+
+    # found nearest point to the first checkpoint
+    perfect_point_iterator = 0
+    min_dist = float('inf')
+    for position, perfect_checkpoint in enumerate(perfect_lap_checkpoints):
+        perfect_pos = np.array([
+            perfect_checkpoint['pose.pose.position.x'],
+            perfect_checkpoint['pose.pose.position.y']
+        ])
+        dist = np.linalg.norm(perfect_pos - first_checkpoint)
+        if dist < min_dist:
+            min_dist = dist
+            perfect_point_iterator = position
+
+    lap_checkpoint = 0  # for round completed register
+
+    # Direction 1
+    checkpoints_reached_dir_1 = 1
+    checkpoint_iterator = 1
+    perfect_point_iterator_dir_1 = perfect_point_iterator + 1
+
+    while checkpoint_iterator < len(checkpoints):
+        if perfect_point_iterator_dir_1 >= len(perfect_lap_checkpoints):
+            perfect_point_iterator_dir_1 = 0
+        current_checkpoint = np.array([
+            checkpoints[checkpoint_iterator]['pose.pose.position.x'],
+            checkpoints[checkpoint_iterator]['pose.pose.position.y']
+        ])
+        perfect_checkpoint = np.array([
+            perfect_lap_checkpoints[perfect_point_iterator_dir_1]['pose.pose.position.x'],
+            perfect_lap_checkpoints[perfect_point_iterator_dir_1]['pose.pose.position.y']
+        ])
+        dist = np.linalg.norm(perfect_checkpoint - current_checkpoint)
+        if dist < 5:
+            checkpoints_reached_dir_1 += 1
+            perfect_point_iterator_dir_1 += 1
+            if checkpoints_reached_dir_1 == len(perfect_lap_checkpoints):
+                lap_checkpoint = checkpoint_iterator
+        else:
+            checkpoint_iterator += 1
+
+    percentage_completed_dir_1 = (checkpoints_reached_dir_1 / len(perfect_lap_checkpoints)) * 100
+
+    # Direction 2 
+    checkpoints_reached_dir_2 = 1
+    checkpoint_iterator = 1
+    perfect_point_iterator_dir_2 = perfect_point_iterator - 1
+
+    while checkpoint_iterator < len(checkpoints):
+        if perfect_point_iterator_dir_2 < 0:
+            perfect_point_iterator_dir_2 = len(perfect_lap_checkpoints) - 1
+        current_checkpoint = np.array([
+            checkpoints[checkpoint_iterator]['pose.pose.position.x'],
+            checkpoints[checkpoint_iterator]['pose.pose.position.y']
+        ])
+        perfect_checkpoint = np.array([
+            perfect_lap_checkpoints[perfect_point_iterator_dir_2]['pose.pose.position.x'],
+            perfect_lap_checkpoints[perfect_point_iterator_dir_2]['pose.pose.position.y']
+        ])
+        dist = np.linalg.norm(perfect_checkpoint - current_checkpoint)
+        if dist < 5:
+            checkpoints_reached_dir_2 += 1
+            perfect_point_iterator_dir_2 -= 1
+            if checkpoints_reached_dir_2 == len(perfect_lap_checkpoints):
+                lap_checkpoint = checkpoint_iterator
+        else:
+            checkpoint_iterator += 1
+
+    percentage_completed_dir_2 = (checkpoints_reached_dir_2 / len(perfect_lap_checkpoints)) * 100
+
+    # Select the maximum percentage completed
+    experiment_metrics['percentage_completed'] = max(percentage_completed_dir_1, percentage_completed_dir_2)
+    experiment_metrics['lap_checkpoint'] = lap_checkpoint
+    return experiment_metrics
+
+
 
 def get_average_speed(experiment_metrics, speedometer_points):
     previous_speed = 0
@@ -202,7 +305,8 @@ def get_average_speed(experiment_metrics, speedometer_points):
     suddenness_distance_speeds = []
     speed_points = []
     for point in speedometer_points:
-        speed_point = point.data*3.6
+        # speed_point = point.data*3.6
+        speed_point = point['data']*3.6
         speedometer_points_sum += speed_point
         a = np.array(speed_point)
         b = np.array(previous_speed)
