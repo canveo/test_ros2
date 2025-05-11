@@ -156,7 +156,7 @@ class ControllerGazebo:
             self.recording = True
 
             if ros_version == "2":
-            command = "ros2 bag record -o " + dataset_name + "/behav_bag" + " " + " ".join(topics)
+                command = "ros2 bag record -o " + dataset_name + "/behav_bag" + " " + " ".join(topics)
             else:
                 command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
                 
