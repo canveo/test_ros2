@@ -267,10 +267,6 @@ def read_ros2(bag_dir: str, topics: list, topic_type_map: dict):
     - topics: list of topics to extact
     - topic_type_map: dict {topic: 'package/msg/Type'} for deserialization
     """
-    from rosbag2_py import StorageOptions, ConverterOptions, SequentialReader
-    from rclpy.serialization import deserialize_message
-    from rosidl_runtime_py.utilities import get_message
-
     msgs = []
     storage_opts = StorageOptions(uri=bag_dir, storage_id='sqlite3')
     conv_opts    = ConverterOptions(
