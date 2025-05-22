@@ -3,7 +3,7 @@ import sys
 import subprocess
 import os
 import traceback
-
+from utils.logger import logger
 from abc import abstractmethod
 from albumentations import (
     Compose, Normalize, RandomRain, RandomBrightness, RandomShadow, RandomSnow, RandomFog, RandomSunFlare, Affine
@@ -38,15 +38,14 @@ class Brains(object):
         robot_type = path_split[-2]
         module_name = path_split[-1][:-3]  # removing .py extension
         
-        # import_name = 'brains.' + framework + '.' + robot_type + '.' + module_name
         
         if len(path_split) == 4:
-            framework = path_split[2]
-            import_name = 'brains.' + robot_type + '.' + framework + '.' + module_name
+            import_name = 'brains.' + framework + '.' + robot_type  + '.' + module_name
         else:
             import_name = 'brains.' + robot_type + '.' + module_name
-            print(import_name)
 
+        logger.info("import_name:" + import_name)
+        
         if robot_type == 'CARLA':
             module = importlib.import_module(import_name)
             Brain = getattr(module, 'Brain')
@@ -61,6 +60,8 @@ class Brains(object):
             if import_name in sys.modules:  # for reloading sake
                 del sys.modules[import_name]
             module = importlib.import_module(import_name)
+            Brain = getattr(module, 'Brain')
+            print('Brain: ', Brain)
             if robot_type == 'drone':
                 self.active_brain = Brain(handler=self, config=self.config)
             else:
