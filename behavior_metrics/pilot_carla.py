@@ -42,8 +42,6 @@ __contributors__ = []
 __license__ = 'GPLv3'
 
 
-
-
 class PilotCarla(threading.Thread):
     """This class handles the robot and its brain.
 
