@@ -179,7 +179,7 @@ class ControllerGazebo:
             topics {list} -- List of topics to be recorde
             dataset_name {str} -- Path of the resulting bag file
         """
-        if self.recording:
+         if self.recording:
             logger.info("Rosbag already recording")
             self.stop_record()
             return
@@ -195,9 +195,6 @@ class ControllerGazebo:
         cmd_split = shlex.split(command)
         with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
             self.rosbag_proc = subprocess.Popen(cmd_split, stdout=out, stderr=err)
-
-
-            
 
     def stop_record(self):
         """Stop the rosbag recording process."""
