@@ -45,7 +45,7 @@ except ModuleNotFoundError as ex:
     logger.error('CARLA is not supported')
     
 from std_srvs.srv import Empty
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image as RosImage
 from cv_bridge import CvBridge
 from datetime import datetime
 from std_msgs.msg import String
@@ -56,7 +56,7 @@ try:
     from carla_msgs.msg import CarlaCollisionEvent
 except ModuleNotFoundError as ex:
     logger.error('CARLA is not supported')
-from PIL import Image
+from PIL import Image as PILImage
 __author__ = 'sergiopaniego'
 __contributors__ = []
 __license__ = 'GPLv3'
@@ -319,6 +319,7 @@ class ControllerCarla:
             '/carla/ego_vehicle/speedometer',
             '/carla/ego_vehicle/vehicle_status',
             '/clock',
+            '/carla/ego_vehicle/rgb_front/image',  #first image
             ]
 
         if ros_version == "2":
@@ -388,9 +389,9 @@ class ControllerCarla:
         logger.info("Metrics stored in JSON file")
 
         for counter, image in enumerate(first_images):
-            im = Image.fromarray(image)
+            im = PILImage.fromarray(image)
             im.save(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + "_first_image_" + str(counter) + ".jpeg")
 
         for counter, image in enumerate(last_images):
-            im = Image.fromarray(image)
+            im = PILImage.fromarray(image)
             im.save(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + "_last_image_" + str(counter) + ".jpeg")
