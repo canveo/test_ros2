@@ -39,6 +39,7 @@ Behaviors:
         Parameters:
             # Model: 'pilotnet_v8.0.pth'
             Model: 'bubble_deepest_model.pth'
+            # Model: 'dagger_deepest_model_7e5_bs16_4.pth'
             ImageCropped: False
             # ImageSize: [200,66]
             ImageSize: [800, 600]
@@ -49,7 +50,7 @@ Behaviors:
             ImageTranform: ''
         Type: 'CARLA'
     Simulation:
-        # World: configs/CARLA/CARLA_launch_files/town_02_anticlockwise.launch.py'
+        # World: configs/CARLA/CARLA_launch_files/town_02_anticlockwise.launch.py
         World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py
         RandomSpawnPoint: False
     Dataset:

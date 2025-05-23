@@ -369,7 +369,7 @@ class ControllerCarla:
             )
             
         except Exception as e:
-            logger.error(f"Error leyendo bag en ROS2 <<<<<: {e}")
+            logger.error(f"Error while processing metrics: {e}")
             self.experiment_metrics = { }
 
         self.experiment_metrics['experiment_total_real_time'] = end_time - self.pilot.pilot_start_time
