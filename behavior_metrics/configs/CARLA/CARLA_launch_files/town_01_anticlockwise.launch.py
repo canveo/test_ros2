@@ -35,7 +35,7 @@ def generate_launch_description():
     )
     # DEbugging changes town to Town01
     town_arg = DeclareLaunchArgument(
-        "town", default_value="Town02", description="CARLA town to load"
+        "town", default_value="Town01", description="CARLA town to load"
     )
     passive_arg = DeclareLaunchArgument(
         "passive", default_value="", description="Enable/disable passive mode"

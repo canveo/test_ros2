@@ -1,5 +1,5 @@
 from brains.CARLA.utils.pilotnet_onehot import PilotNetOneHot
-from brains.CARLA.utils.modifiedDeepestLSTM import ModifiedDeepestLSTM
+# from brains.CARLA.utils.modifiedDeepestLSTM import ModifiedDeepestLSTM
 from brains.CARLA.utils.test_utils import (
     traffic_light_to_int,
     model_control,
@@ -25,6 +25,9 @@ import carla
 
 from torchvision import transforms
 import cv2
+
+from torchvision.models import resnet18
+import torch.nn as nn
 
 PRETRAINED_MODELS = ROOT_PATH + "/" + PRETRAINED_MODELS_DIR + "CARLA/"
 
@@ -74,13 +77,18 @@ class Brain:
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             
-            self.monolithic_model = ModifiedDeepestLSTM(image_shape=(66, 200, 3), num_labels=2)
+            # self.monolithic_model = ModifiedDeepestLSTM(image_shape=(66, 200, 3), num_labels=2)
             monolithic_model_path = PRETRAINED_MODELS + model
             print("Loading model from: ", monolithic_model_path)
             
+            self.monolithic_model = resnet18(weights=None)
+            self.monolithic_model.fc = nn.Linear(self.monolithic_model.fc.in_features, 2)
             self.monolithic_model.load_state_dict(torch.load(monolithic_model_path, map_location=self.device))
             self.monolithic_model.to(self.device)
             self.monolithic_model.eval()
+            # self.monolithic_model.load_state_dict(torch.load(monolithic_model_path, map_location=self.device))
+            # self.monolithic_model.to(self.device)
+            # self.monolithic_model.eval()
             # if not path.exists(PRETRAINED_MODELS + model):
             #     print("File " + model + " cannot be found in " + PRETRAINED_MODELS)
 
@@ -169,18 +177,31 @@ class Brain:
         Returns:
             tuple -- Steering and throttle values
         """
-        image_seg_processed = self.process_image_rgb(image_seg)  # (66, 200, 3)
-        # Convertir a tensor y agregar dimensión de batch
-        input_tensor = np.expand_dims(image_seg_processed, axis=0)  # (1, 66, 200, 3)
-        input_tensor = torch.from_numpy(input_tensor).float()
-        # Reordenar dimensiones: (batch, canales, alto, ancho)
-        input_tensor = input_tensor.permute(0, 3, 1, 2)
-        input_tensor = input_tensor.to(self.device)       #  (torch.device("cpu"))
+        # image_seg_processed = self.process_image_rgb(image_seg)  # (66, 200, 3)
+        # # Convertir a tensor y agregar dimensión de batch
+        # input_tensor = np.expand_dims(image_seg_processed, axis=0)  # (1, 66, 200, 3)
+        # input_tensor = torch.from_numpy(input_tensor).float()
+        # # Reordenar dimensiones: (batch, canales, alto, ancho)
+        # input_tensor = input_tensor.permute(0, 3, 1, 2)
+        # input_tensor = input_tensor.to(self.device)       #  (torch.device("cpu"))
+        # with torch.no_grad():
+        #     prediction = model(input_tensor)
+        # # Se asume que el modelo devuelve una tupla (steer, throttle)
+        # steer = prediction[0].item()
+        # throttle = prediction[1].item()
+        # return steer, throttle
+        
+        image_seg_processed = self.process_image_rgb(image_seg)  # (66, 200, 3) → tu modelo espera (240, 640, 3)
+
+        # Aquí ajustamos al formato de entrada entrenado (240x640)
+        resized = cv2.resize(image_seg_processed, (640, 240))  # resize from (66,200) to (240,640)
+        input_tensor = torch.tensor(resized, dtype=torch.float32).permute(2, 0, 1) / 255.0
+        input_tensor = input_tensor.unsqueeze(0).to(self.device)  # Añadir batch dim
+
         with torch.no_grad():
             prediction = model(input_tensor)
-        # Se asume que el modelo devuelve una tupla (steer, throttle)
-        steer = prediction[0].item()
-        throttle = prediction[1].item()
+
+        steer, throttle = prediction[0].tolist()
         return steer, throttle
 
     def execute(self):
@@ -202,12 +223,12 @@ class Brain:
 
         try:
             steer, throttle = self.predict_controls(self.monolithic_model, seg_image)
-            denormalized_steer = np.interp(steer, (0, 1), (-1, 1))
+            # denormalized_steer = np.interp(steer, (0, 1), (-1, 1))
 
             # print(f"steer {denormalized_steer:.2f}, throttle {throttle:.2f}")
             
             self.motors.sendThrottle(throttle)
-            self.motors.sendSteer(denormalized_steer)       
+            self.motors.sendSteer(steer)       
 
             self.inference_times.append(time.time() - start_time)
             
