@@ -38,8 +38,8 @@ Behaviors:
         AsyncMode: True
         Parameters:
             # Model: 'pilotnet_v8.0.pth'
-            Model: 'bubble_deepest_model.pth'
-            # Model: 'dagger_deepest_model_7e5_bs16_4.pth'
+            # Model: 'best_model_resnet18.pth'
+            Model: 'dagger_deepest_model_7e5_bs16_4.pth'
             ImageCropped: False
             # ImageSize: [200,66]
             ImageSize: [800, 600]
