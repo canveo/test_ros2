@@ -27,6 +27,7 @@ from robot.actuators import Actuators
 import matplotlib.pyplot as plt
 import pandas as pd
 
+
 def check_args(argv):
     """Function that handles argument checking and parsing.
 
@@ -352,7 +353,10 @@ def main():
     node = init_node(config_data['ros_version']) # Initialize the ROS node shared by all the application
         
     app_configuration = Config(config_data['config'][0])
-        
+
+    for key, value in app_configuration.__dict__.items():
+        logger.info(f"{key}: {value}")
+
     motors = PublisherMotors(node,'motors', 1, 1, 0, 0)  # Create the motors instance
     actuators = Actuators(app_configuration.actuators, node)  # Create the actuators instance
     
@@ -426,8 +430,8 @@ def main():
                             while success != 0:                    
                                 experiments_information['world_counter'][world_counter]['brain_counter'][brain_counter]['repetition_counter'][repetition_counter] = experiment_attempts
                                 logger.info("Launching: python3 script_manager_carla.py -c " + config_data['config'][0] + " -s -world_counter " + str(world_counter) + " -brain_counter " + str(brain_counter) + " -repetition_counter " + str(repetition_counter))
-                                logger.info("Experiment attempt: " + str(experiment_attempts+1))
-                                current_experiment_starting_time = time.time()
+                                logger.info("Experiment attempt: " + str(experiment_attempts+1)) 
+                                current_experiment_starting_time = time.time() 
                                 success = os.system("python3 script_manager_carla.py -c " + config_data['config'][0] + " -s -world_counter " + str(world_counter) + " -brain_counter " + str(brain_counter) + " -repetition_counter " + str(repetition_counter))
                                 if success != 0:
                                     root = './'
@@ -456,22 +460,28 @@ def main():
                             logger.info('Last experiment folder: ')
                             logger.info(max(glob.glob(os.path.join('./', '*/')), key=os.path.getmtime))
             elif app_configuration.task == 'follow_route':
+                logger.info('Task: follow_route')
 
                 experiments_starting_time = time.time()
+                logger.info('starting experiments at: ' + str(experiments_starting_time))
                 experiment_counter = 0
                 experiments_elapsed_times = {'experiment_counter': [], 'elapsed_time': []}
                 
+                logger.info('Total experiments to run: ' + str(len(app_configuration.current_world))) 
+                logger.info('current_world: ' + str(app_configuration.current_world))   
+                
                 for world_counter, world in enumerate(app_configuration.current_world):
+                    logger.info('world_counter: ' + str(world_counter))
                     for brain_counter, brain in enumerate(app_configuration.brain_path):
                         for route_counter in range(app_configuration.num_routes):
                             success = -1
                             experiment_attempts = 0
                             while success != 0:
                                 logger.info("Launching: python3 test_suite_manager_carla.py -c " + config_data['config'][0])
-                                logger.info("Experiment attempt: " + str(experiment_attempts+1))
+                                logger.info("Experiment attempt 2: " + str(experiment_attempts+1))  # debug
                                 current_experiment_starting_time = time.time()
                                 success = os.system("python3 test_suite_manager_carla.py -c " + config_data['config'][0] + " -s -world_counter " + str(world_counter) + " -brain_counter " + str(brain_counter) + " -route_counter " + str(route_counter))
-                                print('success: ', success)
+                                print('success cccccc: ', success)
                                 if success != 0:
                                     root = './'
                                     folders = list(os.walk(root))[1:]
@@ -509,4 +519,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    sys.exit(0)
+    sys.exit(0) 

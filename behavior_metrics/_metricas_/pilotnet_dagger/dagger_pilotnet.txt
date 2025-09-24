@@ -1,0 +1,41 @@
+timestamp 20250706-171849
+experiment_configuration {'empty': False, 'brain_path': '/home/canveo/Projects/test_ros2/behavior_metrics/brains/CARLA/brain_modifiedDeepestLSTM.py', 'environment': None, 'robot_type': 'CARLA', 'pilot_time_cycle': 25, 'current_world': 'configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py', 'task': 'follow_lane', 'num_routes': 0, 'randomize_routes': True, 'waypoint_publisher_path': None, 'real_time_update_rate': 1000, 'async_mode': False, 'actuators': {'CARLA_Motors': {'Motors_0': {'Name': 'motors_0', 'Topic': '/carla/ego_vehicle/vehicle_control_cmd', 'MaxV': 25, 'MaxW': 5}}}, 'sensors': {'Cameras': {'Camera_0': {'Name': 'camera_0', 'Topic': '/carla/ego_vehicle/rgb_front/image'}, 'Camera_1': {'Name': 'camera_1', 'Topic': '/carla/ego_vehicle/rgb_view/image'}, 'Camera_2': {'Name': 'camera_2', 'Topic': '/carla/ego_vehicle/semantic_segmentation_front/image'}, 'Camera_3': {'Name': 'camera_3', 'Topic': '/carla/ego_vehicle/dvs_front/image'}}, 'Pose3D': {'Pose3D_0': {'Name': 'pose3d_0', 'Topic': '/carla/ego_vehicle/odometry'}}, 'BirdEyeView': {'BirdEyeView_0': {'Name': 'bird_eye_view_0', 'Topic': ''}}, 'Speedometer': {'Speedometer_0': {'Name': 'speedometer_0', 'Topic': '/carla/ego_vehicle/speedometer'}}}, 'layout': {'frame_0': ([1, 1, 1, 1], 'rgbimage'), 'frame_1': ([0, 1, 1, 1], 'rgbimage'), 'frame_2': ([0, 2, 1, 1], 'rgbimage'), 'frame_3': ([1, 2, 1, 1], 'rgbimage')}, 'dataset_in': '/tmp/my_bag.bag', 'dataset_out': '', 'stats_out': './', 'stats_perfect_lap': './perfect_bags/lap-simple-circuit.bag', 'brain_kwargs': {'ImageCropped': False, 'ImageSize': [800, 600], 'ImageNormalized': False, 'PredictionsNormalized': False, 'GPU': True, 'UseOptimized': False, 'ImageTranform': ''}, 'experiment_model': 'pilotnet_dagger.pth', 'experiment_random_spawn_point': False, 'spawn_points': [], 'number_of_vehicle': 0, 'number_of_walker': 0, 'percentage_walker_running': 0.0, 'percentage_walker_crossing': 0.0}
+world_launch_file town_01_anticlockwise.launch.py
+brain_file brain_modifiedDeepestLSTM.py
+robot_type CARLA
+carla_map Carla/Maps/Town02
+ego_vehicle vehicle.tesla.model3
+vehicles_number 1
+async_mode False
+weather {'cloudiness': 10.0, 'precipitation': 0.0, 'precipitation_deposits': 0.0, 'wind_intensity': 10.0, 'sun_azimuth_angle': 250.0, 'sun_altitude_angle': 30.0, 'fog_density': 10.0, 'fog_distance': 60.0, 'fog_falloff': 0.8999999761581421, 'wetness': 0.0, 'scattering_intensity': 1.0, 'mie_scattering_scale': 0.029999999329447746, 'rayleigh_scattering_scale': 0.03310000151395798}
+experiment_model pilotnet_dagger.pth
+percentage_completed 0.016989466530750934
+lap_checkpoint 0
+starting_point (171.5999755859375, -105.29999542236328)
+completed_distance 405.39327877792607
+average_speed 11.340059152060206
+suddenness_distance_speed 0.25607367532566977
+max_speed 21.868965911865235
+min_speed -19.226925659179688
+suddenness_distance_control_commands 0.09950436015682812
+suddenness_distance_throttle 0.09157988320565918
+suddenness_distance_steer 0.017939647074192037
+suddenness_distance_brake_command 0.0
+collisions 0
+collision_actor_ids []
+lane_invasions 0
+experiment_total_simulated_time 124
+effective_completed_distance 287.0
+position_deviation_mean 1.5911679375416345
+position_deviation_total_err 2622.2447610686136
+position_deviation_mean_per_km 5.544139155197334
+starting_point_map (14.680935382843018, 105.29999542236328)
+collisions_per_km 0
+lane_invasions_per_km 0
+suddenness_distance_control_command_per_km 0.3467050876544534
+suddenness_distance_throttle_per_km 0.31909366970612957
+suddenness_distance_steer_per_km 0.06250748109474578
+suddenness_distance_brake_command_per_km 0.0
+suddenness_distance_speed_per_km 0.8922427711695812
+
+

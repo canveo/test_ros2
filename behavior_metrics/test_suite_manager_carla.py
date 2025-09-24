@@ -90,7 +90,7 @@ def check_args(argv):
                 parser.error('{}No such file {} {}'.format(Colors.FAIL, config_file, Colors.ENDC))
 
         config_data['config'] = args.config
-
+   
     if args.gui:
         config_data['gui'] = args.gui
 
@@ -112,19 +112,31 @@ def check_args(argv):
     return config_data
 
 def main():
+    # debug
+    if ros_version == '2':
+        if not rclpy.ok():          # evita doble init si algo más ya lo hizo
+            rclpy.init()
+        node = rclpy.create_node('driver_carla_runner')
+    else:
+        rospy.init_node('driver_carla_runner')
+    # debug end
+        
+        
     config_data = check_args(sys.argv)
     app_configuration = Config(config_data['config'][0])
     world_counter = int(config_data['world_counter'][0])
     brain_counter = int(config_data['brain_counter'][0])
     route_counter = int(config_data['route_counter'][0])
 
-    logger.info(str(world_counter) + ' ' + str(brain_counter) + ' ' + str(route_counter))
-
+    # logger.info(str(world_counter) + ' ' + str(brain_counter) + ' ' + str(route_counter))
+    # for key, value in app_configuration.__dict__.items():
+    #     logger.debug(f'{key}: {value}')
+    #     print(f'{key}: {value}')
+  
     world = app_configuration.current_world[world_counter]
     brain = app_configuration.brain_path[brain_counter]
     experiment_model = app_configuration.experiment_model[brain_counter]
     
-
     test_suite_fname = TESTSUITES + app_configuration.test_suite + '.py'
 
     if not os.path.exists(test_suite_fname):
@@ -145,13 +157,14 @@ def main():
     route = TEST_ROUTES[route_counter]['commands']
     app_configuration.brain_kwargs['Route'] = route
     route_length = TEST_ROUTES[route_counter]['distance']
+    
     environment.launch_env(world, 
                            random_spawn_point=False, 
                            carla_simulator=True, 
                            config_spawn_point=spawn_point,
                            config_town=town)
-    
-    controller = ControllerCarla()
+
+    controller = ControllerCarla(node)  # debug
 
     # generate traffic
     traffic_manager = TrafficManager(app_configuration.number_of_vehicle, 
@@ -163,8 +176,9 @@ def main():
     traffic_manager.generate_traffic()
     
     # Launch control
-    pilot = PilotCarla(app_configuration, controller, brain, experiment_model=experiment_model)
+    pilot = PilotCarla(node, app_configuration, controller, brain, experiment_model=experiment_model)
     pilot.brains.active_brain.target_point = target_point
+    print(f"Target point set to: {pilot.brains.active_brain.target_point}") # debug
     pilot.daemon = True
     pilot.start()
     logger.info('Executing app')
@@ -177,10 +191,19 @@ def main():
         experiment_timeout = app_configuration.experiment_timeouts[world_counter]
 
     start_time = time.time()
-    termination_code = 3 # timeout
+    termination_code = 3 # timeout  # original en 3 -> debug
     while (time.time() - start_time) < experiment_timeout:
-        rospy.sleep(0.1)
-        if pilot.brains.active_brain.termination_code != 0:
+        # print(f"Termination code------: {pilot.brains.active_brain.termination_code}") # debug
+        if ros_version == '2':
+            # time.sleep(0.1)
+            rclpy.spin_once(node, timeout_sec=0.1)
+        else:
+            rospy.sleep(0.1)
+        code = getattr(pilot.brains.active_brain, 'termination_code', 1)
+        # logger.info(f"Current termination code ciclo: {code}") # debug
+        if code != 0:
+            # logger.info(f"Termination code final: {code}")
+            termination_code = code
             break
                 
     # rospy.sleep(experiment_timeout)
@@ -192,8 +215,35 @@ def main():
     logger.info('closing all processes...')
     controller.pilot.kill()
     environment.close_ros_and_simulators()
+    
+    
+    # Clean environment
+    import psutil
+
+    def kill_processes_by_name(names):
+        for proc in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
+            try:
+                pname = proc.info.get('name') or ''
+                cmdline = proc.info.get('cmdline') or []
+                for name in names:
+                    if name in pname or any(name in cmd for cmd in cmdline):
+                        print(f"Killing leftover process: {proc.pid} {pname}")
+                        proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+    #### debug: esperar a que el piloto termine
+    
+    
+    
+    
     while not controller.pilot.execution_completed:
         time.sleep(1)
+    # debug
+    if ros_version == '2' and rclpy.ok():
+        node.destroy_node()
+        rclpy.shutdown()
+    # debug end
 
 
 if __name__ == '__main__':

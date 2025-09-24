@@ -90,6 +90,7 @@ class PilotCarla(threading.Thread):
         self.checkpoint_save = False
         self.max_distance = 0.5
         self.execution_completed = False
+        self.tick_counter = 0 # Counter for the number of ticks for debugging purposes
         self.stats_thread = threading.Thread(target=self.track_stats)
         self.stats_thread.start()
         self.ros_clock_time = 0
@@ -103,6 +104,11 @@ class PilotCarla(threading.Thread):
         self.async_mode = self.configuration.async_mode
         self.waypoint_publisher_path = self.configuration.waypoint_publisher_path
         
+        if ros_version == '2':
+            self.control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 10)
+        else:
+            self.control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=10)  
+                
     def __wait_carla(self):
         """Wait for simulator to be initialized"""
 
@@ -119,6 +125,7 @@ class PilotCarla(threading.Thread):
         else:
             self.brains = Brains(self.sensors, self.actuators, self.brain_path, self.controller,
                                  config=self.configuration.brain_kwargs)
+        self.brains.active_brain.pilot = self# set the pilot in the brains controller debugging purposes
         self.__wait_carla()
 
     def stop_interfaces(self):
@@ -137,14 +144,14 @@ class PilotCarla(threading.Thread):
         self.sensors.get_camera('camera_0').total_frames = 0
         self.pilot_start_time = time.time()
         
-        if ros_version == '2':
-            control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
-        else:
-            control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)  
+        # if ros_version == '2':
+        #     control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
+        # else:
+        #     control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)  
             
         control_command = CarlaControl()
         control_command.command = 1 # PAUSE
-        control_pub.publish(control_command)
+        self.control_pub.publish(control_command)
 
         self.waypoint_publisher = None
         while not self.kill_event.is_set():
@@ -152,28 +159,30 @@ class PilotCarla(threading.Thread):
                 if self.waypoint_publisher is None and self.waypoint_publisher_path is not None:
                     if ros_version == '2':
                         self.waypoint_publisher = subprocess.Popen(["ros2", "launch", ROOT_PATH + '/' + self.waypoint_publisher_path])
+                        logger.info('Waypoint publisher started in ' + ROOT_PATH + '/' + str(self.waypoint_publisher_path))
                     else:
                         self.waypoint_publisher = subprocess.Popen(["roslaunch", ROOT_PATH + '/' + self.waypoint_publisher_path])
                 
                 if ros_version == '2':
-                    if not hasattr(self, 'control_pub'):
-                        # control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1) 
-                        control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
+                    # if not hasattr(self, 'control_pub'):
+                    #     # control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1) 
+                    #     self.control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
+                    #     pass
                     control_command = CarlaControl()
                     if self.async_mode:
                         control_command.command = 2 # STEP_ONCE
                     else:
                         control_command.command = 0 # PLAY
-                    control_pub.publish(control_command)            
+                    self.control_pub.publish(control_command)            
                 else:
-                    control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
+                    # self.control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
                     control_command = CarlaControl()
                         
                     if self.async_mode:
                         control_command.command = 2 # STEP_ONCE
                     else:
                         control_command.command = 0 # PLAY
-                    control_pub.publish(control_command)
+                    self.control_pub.publish(control_command)
 
                 start_time = datetime.now()
                 start_time_ros = self.ros_clock_time
@@ -196,10 +205,26 @@ class PilotCarla(threading.Thread):
                 self.brain_iterations_real_time.append(ms / 1000)
                 if ms < self.time_cycle:
                     time.sleep((self.time_cycle - ms) / 1000.0)
+                    
+                sim_time_delta = self.ros_clock_time - start_time_ros
+                self.brain_iterations_simulated_time.append(sim_time_delta)
+                
+                # Calcula el factor de tiempo real
+                if ms > 0:
+                    self.real_time_factor = sim_time_delta / (ms / 1000.0)  # convertir ms a segundos
+                else:
+                    self.real_time_factor = 0.0
+                
                 self.real_time_factors.append(self.real_time_factor)
                 self.brain_iterations_simulated_time.append(self.ros_clock_time - start_time_ros)
                 if not self.async_mode:
                     self.controller.world.tick()
+                    print(
+                        # f"PilotCarla: {self.brain_iterations_real_time[-1]} ms, "
+                          f"RFT: {self.real_time_factors[-1]}, "
+                          f"Simulated Time: {self.brain_iterations_simulated_time[-1]} ms"
+                          )    
+                self.tick_counter += 1 # debugging purposes
         self.execution_completed = True
         self.kill()
         logger.info('Pilot: pilot killed.')
@@ -221,6 +246,12 @@ class PilotCarla(threading.Thread):
         """Destroy the main loop. For exiting"""
         self.stop_interfaces()
         self.actuators.kill()
+        # if hasattr(self, 'control_pub'):
+        #     if ros_version == '2':
+        #         self.node.destroy_publisher(self.control_pub)
+        #     else:
+        #         self.control_pub.unregister()
+        #     self.control_pub = None
         self.kill_event.set()
 
     def reload_brain(self, brain_path, model=None):
@@ -245,6 +276,7 @@ class PilotCarla(threading.Thread):
         return False
 
     def clock_callback(self, clock_data):
+        # self.tick_counter += 1
         if ros_version == '2':
             self.ros_clock_time = clock_data.clock.sec + clock_data.clock.nanosec * 1e-9
         else:

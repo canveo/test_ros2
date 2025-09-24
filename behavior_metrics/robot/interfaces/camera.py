@@ -97,7 +97,7 @@ class ListenerCamera:
         self.lock.acquire()
         image = self.data
         self.lock.release()
-
+               
         return image
 
     def getTopic(self):

@@ -138,8 +138,9 @@ def get_metrics(experiment_metrics, experiment_metrics_bag_filename, map_waypoin
     seconds_end = clock_points[len(clock_points) - 1]['clock.secs']
 
     collision_points = []
-    if 'carla/ego_vehicle/collision' in data_by_topic:
-        dataframe_collision =  pd.DataFrame([{'Time': i} for i, msg in enumerate(data_by_topic['carla/ego_vehicle/collision'])])
+    lane_invasion_points = [] 
+    if '/carla/ego_vehicle/collision' in data_by_topic:
+        dataframe_collision =  pd.DataFrame([{'Time': i} for i, msg in enumerate(data_by_topic['/carla/ego_vehicle/collision'])])
         collision_points = dataframe_collision.to_dict('records')
         
 
@@ -655,6 +656,10 @@ def get_aggregated_experiments_list(experiments_starting_time):
         except:
             print('Broken experiment: ' + folder[0])
             shutil.rmtree(folder[0])
+            
+    if not dataframes:
+        raise ValueError("No experiment metrics JSON files found. Check if test_suite_manager_carla.py ran correctly.")
+
 
     result = pd.concat(dataframes)
     result.index = result['timestamp'].values.tolist()

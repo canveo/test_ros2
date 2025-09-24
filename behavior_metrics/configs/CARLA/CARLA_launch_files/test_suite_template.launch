@@ -7,9 +7,12 @@
   
   <!-- Map to load on startup (either a predefined CARLA town (e.g. 'Town01'), or a OpenDRIVE map file) -->
   <arg name="town"/>
+  <!-- <arg name="town" default='Town02'/>
+  <arg name="quality" default='Low'/> -->
 
   <!-- Ego vehicle spawn point -->
-<arg name="spawn_point"/>
+  <arg name="spawn_point"/>
+  <!-- <arg name="spawn_point" default="170.0,-105.3,0.42,0.00,0.00,180.00"/>   -->
 
   <!-- Enable/disable passive mode -->
   <arg name='passive' default=''/>

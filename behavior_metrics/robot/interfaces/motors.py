@@ -1,5 +1,7 @@
 # import rospy
 import os
+
+from pydash import now
 from utils.logger import logger
 from geometry_msgs.msg import Twist
 import threading
@@ -183,24 +185,35 @@ class PublisherCARLAMotors:
         self.topic = topic
         self.data = CARLAVel()
         if ros_version == '2':
-            self.pub = self.node.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
+            self.pub = self.node.create_publisher(CarlaEgoVehicleControl, self.topic, 10)
         else:  
-            self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=1)
+            self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=10)
             rospy.init_node("CARLAMotors")
         self.lock = threading.Lock()
         self.kill_event = threading.Event()
         self.thread = ThreadPublisher(self, self.kill_event)
         self.thread.daemon = True
-        self.start()
+        self.start()  # is duplicated with the call in actuators.py - init
+               
+        # debugging purpose
+        # self._dirty = False
 
     def publish(self):
         self.lock.acquire()
         vehicle_control = cmdvel2CarlaEgoVehicleControl(self.data)
         self.lock.release()
         self.pub.publish(vehicle_control)
-
+        # with self.lock:
+        #     msg = cmdvel2CarlaEgoVehicleControl(self.data)
+        # # TODO: Add soporte ros1
+        # msg.header.stamp = self.node.get_clock().now().to_msg()  
+        # self.pub.publish(msg)   
+        # return msg        
+      
     def stop(self):
         self.kill_event.set()
+        if self.thread and self.thread.is_alive():
+            self.thread.join()
         if ros_version == '2':
             if self.pub is not None:                
                 self.node.destroy_publisher(self.pub)
@@ -211,7 +224,6 @@ class PublisherCARLAMotors:
                 self.pub = None
 
     def start(self):
-
         self.kill_event.clear()
         self.thread.start()
 
@@ -236,6 +248,10 @@ class PublisherCARLAMotors:
         self.data.throttle = throttle
         self.lock.release()
         self.throttle = throttle
+        # with self.lock:
+        #     self.data.throttle = throttle
+        #     self._dirty = True          
+        # self.throttle = throttle
 
     def sendSteer(self, steer):
 
@@ -243,6 +259,10 @@ class PublisherCARLAMotors:
         self.data.steer = steer
         self.lock.release()
         self.steer = steer
+        # with self.lock:
+        #     self.data.steer = steer
+        #     self._dirty = True
+        # self.steer = steer
 
     def sendBrake(self, brake):
 
@@ -250,3 +270,7 @@ class PublisherCARLAMotors:
         self.data.brake = brake
         self.lock.release()
         self.brake = brake
+        # with self.lock:
+        #     self.data.brake = brake
+        #     self._dirty = True
+        # self.brake = brake
