@@ -123,3 +123,4 @@ bags_analysis/
 behavior_metrics/
 behavior_metrics/carla-birdeye-view/
 carla-birdeye-view/
+birdview_v3_cache/
