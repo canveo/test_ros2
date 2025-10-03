@@ -61,6 +61,19 @@ __author__ = 'sergiopaniego'
 __contributors__ = []
 __license__ = 'GPLv3'
 
+# debug. function to convert numpy types to native python types
+def convert_np_to_native(obj):
+        """Convert numpy types to native Python types."""
+        if isinstance(obj, dict):
+            return {k: convert_np_to_native(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_np_to_native(v) for v in obj]
+        elif isinstance(obj, tuple):
+            return tuple(convert_np_to_native(v) for v in obj)
+        elif hasattr(obj, "item") and callable(obj.item):  # numpy scalar
+            return obj.item()
+        else:
+            return obj
 
 class ControllerCarla:
     """This class defines the controller of the architecture, responsible of the communication between the logic (model)
@@ -72,7 +85,7 @@ class ControllerCarla:
         pose3D_data -- Pose data to be sent to the view
         recording {bool} -- Flag to determine if a rosbag is being recorded
     """
-
+    
     def __init__(self, node: Node):
         """ Constructor of the class. """
         # pass        
@@ -89,8 +102,15 @@ class ControllerCarla:
 
         client = carla.Client('localhost', 2000)
         client.set_timeout(100.0) # seconds
-        self.world = client.get_world()
-        time.sleep(5) # takes a few second for the correct map to finish loading
+        try:
+            self.world = client.get_world()
+        except RuntimeError as e:
+            logger.warning("CARLA RuntimeError: {}".format(e))
+        except carla.TimeoutException as e:
+            logger.warning("CARLA timeout al cerrar {}".format(e))
+            self.world = None
+            
+        time.sleep(30) # takes a few second for the correct map to finish loading  ->debug original en 10
         self.carla_map = self.world.get_map()
         while len(self.world.get_actors().filter('vehicle.*')) == 0:
             logger.info("Waiting for vehicles!")
@@ -123,7 +143,7 @@ class ControllerCarla:
             with self.__data_loc:
                 self.data[frame_id] = data
         except Exception as e:
-            logger.info(e)
+            logger.info("Error updating frame {}: {}".format(frame_id, e))
 
     def get_data(self, frame_id):
         """Function to collect data retrieved by the robot for an specific frame of the GUI
@@ -253,10 +273,10 @@ class ControllerCarla:
 
 
     def record_metrics(self, metrics_record_dir_path, world_counter=None, brain_counter=None, repetition_counter=None):
-        logger.info("Recording metrics bag at: {}".format(metrics_record_dir_path))
-
+        logger.info("Recording metrics bag: {}".format(metrics_record_dir_path))
+        
         self.pilot.brain_iterations_real_time = []
-        self.time_str = time.strftime("%Y%m%d-%H%M%S")       
+        self.time_str = time.strftime("%Y%m%d-%H%M%S") 
         if world_counter is not None:
             current_world_head, current_world_tail = os.path.split(self.pilot.configuration.current_world[world_counter])
         else:
@@ -329,6 +349,8 @@ class ControllerCarla:
         
         command = shlex.split(command)
         with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
+            logger.info(f"Starting metrics bag recording with command: {' '.join(command)}")
+            # time.sleep(12)  # debug
             self.proc = subprocess.Popen(command, stdout=out, stderr=err)
             
         # with open(self.experiment_metrics_bag_filename + '_metadata.json', 'w') as f:
@@ -340,15 +362,16 @@ class ControllerCarla:
         end_time = time.time()
 
         if ros_version == "2":
-            command = "ros2 node kill /behav_metrics_bag"
-            self.proc.terminate()
-            self.proc.wait()
-            logger.info("Stopped bag recording")
+            # command = "ros2 node kill /behav_metrics_bag"
+            if self.proc:
+                self.proc.terminate()
+                self.proc.wait()
+                logger.info("Stopped bag recording")
         else:
             command = "rosnode kill /behav_metrics_bag"
-        command = shlex.split(command)
-        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
-            subprocess.Popen(command, stdout=out, stderr=err)
+            command = shlex.split(command)
+            with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
+                subprocess.Popen(command, stdout=out, stderr=err)
 
         timeout_counter = 20
         bag_active_file = self.experiment_metrics_bag_filename + '.active'
@@ -377,8 +400,11 @@ class ControllerCarla:
 
         experiment_json_path = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str + '.json')
         os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
+        
+        
         with open(experiment_json_path, 'w') as f:
-            json.dump(self.experiment_metrics, f)
+            # json.dump(self.experiment_metrics, f)
+            json.dump(convert_np_to_native(self.experiment_metrics), f)
 
         logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
         logger.info("Stopped metrics bag recording")
@@ -395,3 +421,5 @@ class ControllerCarla:
         for counter, image in enumerate(last_images):
             im = PILImage.fromarray(image)
             im.save(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + "_last_image_" + str(counter) + ".jpeg")
+            
+    

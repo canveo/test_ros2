@@ -1,5 +1,3 @@
-from brains.CARLA.utils.pilotnet_onehot import PilotNetOneHot
-from brains.CARLA.utils.modifiedDeepestLSTM import ModifiedDeepestLSTM
 from brains.CARLA.utils.test_utils import (
     traffic_light_to_int,
     model_control,
@@ -18,13 +16,16 @@ import time
 import math
 import carla
 
-# torch 2.5.1+cu121
-# torchaudio 2.5.1+cu121
-# torchvision 0.20.1+cu121
-
+from torchvision.models import resnet18, ResNet18_Weights, efficientnet_v2_s, EfficientNet_V2_S_Weights
+import torch.nn as nn
 
 from torchvision import transforms
 import cv2
+import onnxruntime as ort
+
+import logging
+# logging.basicConfig(level=logging.INFO)
+
 
 PRETRAINED_MODELS = ROOT_PATH + "/" + PRETRAINED_MODELS_DIR + "CARLA/"
 
@@ -36,7 +37,7 @@ preprocess = transforms.Compose(
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
 )
-
+# TIME_CYCLE = 0.1  # seconds, 10 Hz
 
 class Brain:
 
@@ -55,15 +56,19 @@ class Brain:
 
         client = carla.Client("localhost", 2000)
         client.set_timeout(100.0)
-        world = client.get_world()
-        self.map = world.get_map()
-
+        self.world = client.get_world()
+        self.map = self.world.get_map()
+        
+        # contar ticks
+        # self.delta = self.world.get_settings().fixed_delta_seconds or 0.05
+        # self.prev_frame = None
+        
         weather = carla.WeatherParameters.ClearNoon
-        world.set_weather(weather)
+        self.world.set_weather(weather)
 
         self.vehicle = None
         while self.vehicle is None:
-            for vehicle in world.get_actors().filter("vehicle.*"):
+            for vehicle in self.world.get_actors().filter("vehicle.*"):
                 if vehicle.attributes.get("role_name") == "ego_vehicle":
                     self.vehicle = vehicle
                     break
@@ -74,31 +79,32 @@ class Brain:
         if model:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             
-            self.monolithic_model = ModifiedDeepestLSTM(image_shape=(66, 200, 3), num_labels=2)
             monolithic_model_path = PRETRAINED_MODELS + model
             print("Loading model from: ", monolithic_model_path)
             
-            self.monolithic_model.load_state_dict(torch.load(monolithic_model_path, map_location=self.device))
-            self.monolithic_model.to(self.device)
-            self.monolithic_model.eval()
-            # if not path.exists(PRETRAINED_MODELS + model):
-            #     print("File " + model + " cannot be found in " + PRETRAINED_MODELS)
+            # self.monolithic_model = ModifiedDeepestLSTM(image_shape=(66, 200, 3), num_labels=2)
+            # self.monolithic_model = resnet18(weights=ResNet18_Weights.DEFAULT)
+            # self.monolithic_model.fc = nn.Linear(self.monolithic_model.fc.in_features, 2)
+            # self.monolithic_model.load_state_dict(torch.load(monolithic_model_path, map_location=self.device))
+            # self.monolithic_model.to(self.device)
+            # self.monolithic_model.eval()
+            
+            # self.monolithic_model = efficientnet_v2_s(weights=None)
+            # self.monolithic_model.classifier[-1] = nn.Linear(self.monolithic_model.classifier[-1].in_features, 2)
+            # self.monolithic_model.load_state_dict(torch.load(monolithic_model_path, map_location=self.device))
+            # self.monolithic_model.to(self.device)            
+            # self.monolithic_model.eval()
+            
+            # onnx model
+            providers = [('CUDAExecutionProvider', {})] if ort.get_available_providers().__contains__('CUDAExecutionProvider') else ['CPUExecutionProvider']
+            self.ort_session = ort.InferenceSession(str(monolithic_model_path), providers=providers)
+            
+            print(f"onnx ort session providers: {self.ort_session.get_providers()}")
 
-            # if config["UseOptimized"]:
-            #     self.net = torch.jit.load(PRETRAINED_MODELS + model).to(
-            #         self.device
-            #     )  # TorchScript model verification
-            # else:
-            #     # self.net = PilotNetOneHot((288, 200, 6), 3, 4, 4).to(self.device)
-            #     self.net = ModifiedDeepestLSTM((66, 200, 3), 2).to(
-            #         self.device
-            #     )  # image size 200x66x3, 2 num labels
-            #     self.net.load_state_dict(
-            #         torch.load(PRETRAINED_MODELS + model, map_location=self.device)
-            #     )
-            #     self.net.eval()
-            #     print("Model modified loaded: ", model)
-
+            # nombre de la(s) entrada(s) y salida(s)
+            self._in_name  = self.ort_session.get_inputs()[0].name
+            self._out_name = self.ort_session.get_outputs()[0].name
+            
         if "Route" in config:
             route = config["Route"]
             print("route: ", route)
@@ -110,10 +116,18 @@ class Brain:
         self.prev_yaw = None
         self.delta_yaw = 0
 
-        self.target_point = None
-        self.termination_code = (
-            0  # 0: not terminated; 1: arrived at target; 2: wrong turn
-        )
+        self.target_point = [160.0,-105.3,0.42,0.00,0.00,180.00]
+        self.termination_code = 0  # 0: not terminated; 1: arrived at target; 2: wrong turn
+    
+        self._last_tick = None # para calcular el tiempo entre ticks
+        
+        ## debugging, tick time calculation
+        # Al cargar el modelo ONNX (por ejemplo en __init__ o setup)
+        dummy_input = np.random.rand(1, 3, 66, 200).astype(np.float32)   # Tamaño esperado
+
+        for _ in range(10):
+            _ = self.ort_session.run([self._out_name], {self._in_name: dummy_input})
+
 
     def update_frame(self, frame_id, data):
         """Update the information to be shown in one of the GUI's frames.
@@ -141,80 +155,99 @@ class Brain:
 
         self.handler.update_frame(frame_id, data)
 
-    def process_image_rgb(self, image_seg):
-        """Process the image to extract the road and convert it to grayscale.
 
-        Arguments:
-            image_seg {numpy.ndarray} -- Segmentation image
-        Returns:
-            numpy.ndarray -- Processed image (grayscale)
-        """
+    def predict_controls(self, image_seg): # se saco model como argumento
+        # Asegurarse de que sea una imagen BGR como la cargada por cv2.imread
         calzada_color = [128, 64, 128]
         mask = cv2.inRange(image_seg, np.array(calzada_color), np.array(calzada_color))
+        
+        masked_image = np.zeros_like(image_seg)
+        masked_image[mask > 0] = [255, 255, 255]
+        
+        # cropped = masked_image[200:-1, :]
+        # resized = cv2.resize(masked_image[200:-1, :], (200, 66))   # (66,200) to (240,640) # funciona bien
+        
+        h = masked_image.shape[0]
+        y0 = min(200, max(0, h - 2))           # evita salirte si h < 200
+        crop = masked_image[y0:-1, :]
+        if crop is None or crop.size == 0:     # fallback si el recorte quedó vacío
+            crop = masked_image
+        resized = cv2.resize(crop, (200, 66))  # OpenCV: (width, height)
+     
+        gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+        rgb_like = cv2.merge([gray, gray, gray])
 
-        image_seg_masked = np.zeros_like(image_seg)
-        image_seg_masked[mask > 0] = [255, 255, 255]
+        input_tensor = torch.tensor(rgb_like, dtype=torch.float32).permute(2, 0, 1) 
+        # input_tensor = input_tensor.unsqueeze(0).to(self.device)
 
-        image_seg_rgb = cv2.resize(image_seg_masked[200:-1, :], (200, 66))
-        image_seg_rgb = cv2.cvtColor(image_seg_rgb, cv2.COLOR_BGR2GRAY)
-        image_seg_rgb = cv2.merge([image_seg_rgb, image_seg_rgb, image_seg_rgb])
-        return image_seg_rgb
+        # with torch.no_grad():
+        #     prediction = model(input_tensor)
 
-    def predict_controls(self, model, image_seg):
-        """Predict the steering and throttle values using the model.
-
-        Arguments:
-            model {torch.nn.Module} -- The trained model
-            image_seg {numpy.ndarray} -- Segmentation image
-        Returns:
-            tuple -- Steering and throttle values
-        """
-        image_seg_processed = self.process_image_rgb(image_seg)  # (66, 200, 3)
-        # Convertir a tensor y agregar dimensión de batch
-        input_tensor = np.expand_dims(image_seg_processed, axis=0)  # (1, 66, 200, 3)
-        input_tensor = torch.from_numpy(input_tensor).float()
-        # Reordenar dimensiones: (batch, canales, alto, ancho)
-        input_tensor = input_tensor.permute(0, 3, 1, 2)
-        input_tensor = input_tensor.to(self.device)       #  (torch.device("cpu"))
-        with torch.no_grad():
-            prediction = model(input_tensor)
-        # Se asume que el modelo devuelve una tupla (steer, throttle)
-        steer = prediction[0].item()
-        throttle = prediction[1].item()
-        return steer, throttle
-
-    def execute(self):
-        """Main loop of the brain. This will be called iteratively each TIME_CYCLE (see pilot.py)"""
-
-        rgb_image = self.camera_rgb.getImage().data  # rgb_image shape:  (768, 1024, 3)
-        # rgb_image = cv2.resize(rgb_image, (200, 66))
-        seg_image = self.camera_seg.getImage().data   # seg_image shape:  (80, 400, 3)
-        # seg_image = cv2.resize(seg_image, (200, 66))
-                
-        # print("rgb_image shape: ", rgb_image.shape)
-        # print("seg_image shape: ", seg_image.shape)
-
-        self.update_frame("frame_0", rgb_image)
-        self.update_frame("frame_1", seg_image)
+        # # steer, throttle = prediction[0].tolist()
+        # steer = prediction[0][0].item()
+        # throttle = prediction[0][1].item()
+        
+        input_np = input_tensor.unsqueeze(0).cpu().numpy()        # [1,3,66,200] float32
+        
+        start_infer = time.perf_counter() # for debbuging, tick time calculation
+        
+        # ONNX inference
+        pred = self.ort_session.run([self._out_name], {self._in_name: input_np})[0]  # → (1,2)
+        
+        ## Debugging
+        infer_time = (time.perf_counter() - start_infer) * 1000  # en ms
+        # print(f"Inferencia ONNX: {infer_time:.3f} ms")
         
 
-        start_time = time.time()
+        steer, throttle = pred[0].astype(np.float32)
+        # print(f"steer: {steer}, throttle: {throttle}")
 
-        try:
-            steer, throttle = self.predict_controls(self.monolithic_model, seg_image)
-            denormalized_steer = np.interp(steer, (0, 1), (-1, 1))
+        return float(steer), float(throttle) 
 
-            # print(f"steer {denormalized_steer:.2f}, throttle {throttle:.2f}")
-            
-            self.motors.sendThrottle(throttle)
-            self.motors.sendSteer(denormalized_steer)       
+    def execute(self):
+        """Main loop of the brain. This will be called iteratively each TIME_CYCLE (see pilot.py)"""      
+        rgb_image = self.camera_rgb.getImage().data  # rgb_image shape:  (768, 1024, 3)     
+        seg_image = self.camera_seg.getImage().data   # seg_image shape:  (80, 400, 3)   
+             
+        self.update_frame("frame_0", rgb_image)
+        self.update_frame("frame_1", seg_image)
+    
+        # if hasattr(self, 'pilot'):
+        #     current = self.pilot.tick_counter
+        #     if self._last_tick is None:
+        #         delta = 0
+        #     else:
+        #         delta = current - self._last_tick
+        #     logger.info(f"{delta} ticks -> inferencia")
+        #     self._last_tick = current
+        
+        # print("Inferencia ejecutandose") # (600, 800, 3)
 
-            self.inference_times.append(time.time() - start_time)
+        steer, throttle = self.predict_controls(seg_image) # se saco self.monolithic_model como argumento       
+        # print(f"Predicted - Steer: {steer:.3f}, Throttle: {throttle:.3f}")
+        
+        vehicle_location = self.vehicle.get_transform().location
+        # calculate distance to target point
+        # print(f'vehicle location: ({vehicle_location.x}, {vehicle_location.y})')
+        # print(f'target point: ({self.target_point[0]}, {self.target_point[1]})')
+        
+        # arrived = False # flag to indicate if the vehicle has arrived at the target point
+        # print(f"[DEBUG] vehicle: ({vehicle_location.x:.2f}, {vehicle_location.y:.2f}) "
+        #         f"target: ({self.target_point[0]:.2f}, {self.target_point[1]:.2f})")
+        
+        if self.target_point is not None:
+            distance_to_target = np.sqrt(
+                (self.target_point.x - vehicle_location.x) ** 2 +
+                (self.target_point.y - (-vehicle_location.y)) ** 2)
             
-            # print(self.inference_times[-1])
-            
-        except Exception as ex:
-            logger.info("Error inside brain: Exception!")
-            logger.warning(type(ex).__name__)
-            print_exc()
-            raise Exception(ex)
+            # print(f'Euclidean distance to target: {distance_to_target}')
+            if distance_to_target < 1.5:
+                self.termination_code = 1
+                arrived = True
+                print(f"======== Arrived at target point {distance_to_target} m away============.")
+                
+        
+        self.motors.sendThrottle(throttle)
+        self.motors.sendSteer(steer)
+        self.motors.sendBrake(0.0)
+        
