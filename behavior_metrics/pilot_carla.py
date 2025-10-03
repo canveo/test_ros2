@@ -158,22 +158,22 @@ class PilotCarla(threading.Thread):
                 if ros_version == '2':
                     if not hasattr(self, 'control_pub'):
                         # control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1) 
-                        control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
+                        self.control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
                     control_command = CarlaControl()
                     if self.async_mode:
-                        control_command.command = 2 # STEP_ONCE
-                    else:
                         control_command.command = 0 # PLAY
-                    control_pub.publish(control_command)            
+                    else:
+                        control_command.command = 2 # STEP_ONCE
+                    self.control_pub.publish(control_command)            
                 else:
-                    control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
+                    # self.control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)
                     control_command = CarlaControl()
                         
                     if self.async_mode:
-                        control_command.command = 2 # STEP_ONCE
-                    else:
                         control_command.command = 0 # PLAY
-                    control_pub.publish(control_command)
+                    else:
+                        control_command.command = 2 # STEP_ONCE
+                    self.control_pub.publish(control_command)
 
                 start_time = datetime.now()
                 start_time_ros = self.ros_clock_time

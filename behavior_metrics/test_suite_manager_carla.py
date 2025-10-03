@@ -17,6 +17,8 @@ from utils.constants import CARLA_TOWNS_TIMEOUTS
 from utils.traffic import TrafficManager
 from utils.constants import CARLA_TEST_SUITE_DIR, ROOT_PATH
 
+import carla
+
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
@@ -90,7 +92,7 @@ def check_args(argv):
                 parser.error('{}No such file {} {}'.format(Colors.FAIL, config_file, Colors.ENDC))
 
         config_data['config'] = args.config
-
+   
     if args.gui:
         config_data['gui'] = args.gui
 
@@ -112,19 +114,26 @@ def check_args(argv):
     return config_data
 
 def main():
+    # avoid double init rclpy
+    if ros_version == '2':
+        if not rclpy.ok():         
+            rclpy.init()
+        node = rclpy.create_node('driver_carla_runner')
+    else:
+        rospy.init_node('driver_carla_runner')
+        
+ 
     config_data = check_args(sys.argv)
     app_configuration = Config(config_data['config'][0])
     world_counter = int(config_data['world_counter'][0])
     brain_counter = int(config_data['brain_counter'][0])
     route_counter = int(config_data['route_counter'][0])
 
-    logger.info(str(world_counter) + ' ' + str(brain_counter) + ' ' + str(route_counter))
-
+  
     world = app_configuration.current_world[world_counter]
     brain = app_configuration.brain_path[brain_counter]
     experiment_model = app_configuration.experiment_model[brain_counter]
     
-
     test_suite_fname = TESTSUITES + app_configuration.test_suite + '.py'
 
     if not os.path.exists(test_suite_fname):
@@ -136,22 +145,27 @@ def main():
     test_routes_module = importlib.import_module(app_configuration.test_suite)
     TEST_ROUTES = getattr(test_routes_module, 'TEST_ROUTES')
     spawn_point = TEST_ROUTES[route_counter]['start']
-    target_point = TEST_ROUTES[route_counter]['end'].split(', ')
-    target_point = (float(target_point[0]), float(target_point[1]))
+    target_point_raw = TEST_ROUTES[route_counter]['end'].split(', ')
+    target_point = carla.Location(
+        x=float(target_point_raw[0]),
+        y=float(target_point_raw[1]),
+        z=float(target_point_raw[2]) if len(target_point_raw) > 2 else 0.0
+    )
     start_point = spawn_point.split(', ')
     start_point = (float(start_point[0]), float(start_point[1]))
-    logger.info(f'-------from {start_point} to {target_point}-------')
+    logger.info(f'-------from {start_point} to {(target_point.x, target_point.y)}-------')
     town = TEST_ROUTES[route_counter]['map']
     route = TEST_ROUTES[route_counter]['commands']
     app_configuration.brain_kwargs['Route'] = route
     route_length = TEST_ROUTES[route_counter]['distance']
+    
     environment.launch_env(world, 
                            random_spawn_point=False, 
                            carla_simulator=True, 
                            config_spawn_point=spawn_point,
                            config_town=town)
-    
-    controller = ControllerCarla()
+
+    controller = ControllerCarla(node)  # debug
 
     # generate traffic
     traffic_manager = TrafficManager(app_configuration.number_of_vehicle, 
@@ -163,8 +177,9 @@ def main():
     traffic_manager.generate_traffic()
     
     # Launch control
-    pilot = PilotCarla(app_configuration, controller, brain, experiment_model=experiment_model)
+    pilot = PilotCarla(node, app_configuration, controller, brain, experiment_model=experiment_model)
     pilot.brains.active_brain.target_point = target_point
+    print(f"Target point set to: {pilot.brains.active_brain.target_point}") # debug
     pilot.daemon = True
     pilot.start()
     logger.info('Executing app')
@@ -177,10 +192,19 @@ def main():
         experiment_timeout = app_configuration.experiment_timeouts[world_counter]
 
     start_time = time.time()
-    termination_code = 3 # timeout
+    termination_code = 3     
     while (time.time() - start_time) < experiment_timeout:
-        rospy.sleep(0.1)
+        if ros_version == '2':
+            # time.sleep(0.1)
+            rclpy.spin_once(node, timeout_sec=0.1)
+        elif ros_version == '1':
+            rospy.sleep(0.1)
+        else:
+            time.sleep(0.1) # fallback
+    
         if pilot.brains.active_brain.termination_code != 0:
+            termination_code = pilot.brains.active_brain.termination_code
+            logger.info(f"Termination code final: {termination_code}")
             break
                 
     # rospy.sleep(experiment_timeout)
@@ -192,8 +216,15 @@ def main():
     logger.info('closing all processes...')
     controller.pilot.kill()
     environment.close_ros_and_simulators()
+    
+    
     while not controller.pilot.execution_completed:
         time.sleep(1)
+    # debug
+    if ros_version == '2' and rclpy.ok():
+        node.destroy_node()
+        rclpy.shutdown()
+    # debug end
 
 
 if __name__ == '__main__':
