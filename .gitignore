@@ -195,3 +195,8 @@ Gemfile.lock
 
 .idea
 .BehaviorMetrics
+
+# BM outputs
+behavior_metrics/2025*/
+# Models
+behavior_metrics/models/**/*.onnx
