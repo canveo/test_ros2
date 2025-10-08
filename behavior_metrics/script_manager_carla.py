@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 import time
-import rospy
+# import rospy
 
 from pilot_carla import PilotCarla
 from ui.tui.main_view import TUI
@@ -14,6 +14,15 @@ from utils.controller_carla import ControllerCarla
 from utils.logger import logger
 from utils.tmp_world_generator import tmp_world_generator
 from utils.constants import CARLA_TOWNS_TIMEOUTS
+
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+    from rclpy.executors import MultiThreadedExecutor
+    from rclpy.node import Node
+else:
+    import rospy    
+    
 
 def check_args(argv):
     parser = argparse.ArgumentParser(description='Neural Behaviors Suite',
@@ -113,6 +122,15 @@ def main():
     repetition_counter = int(config_data['repetition_counter'][0])
 
     logger.info(str(world_counter) + ' ' + str(brain_counter) + ' ' + str(repetition_counter))
+    
+    # --- NEW: init ROS node (ROS2) ---
+    node = None
+    executor = None
+    spin_thread = None
+    if ros_version == '2':
+        rclpy.init()
+        node = rclpy.create_node('bm_script_manager_carla_node')
+        logger.info("ROS2 node initialized in script_manager_carla.py")
 
     world = app_configuration.current_world[world_counter]
     brain = app_configuration.brain_path[brain_counter]
@@ -123,22 +141,43 @@ def main():
         environment.launch_env(world, random_spawn_point=app_configuration.experiment_random_spawn_point, carla_simulator=True, config_spawn_point=app_configuration.spawn_points[world_counter][repetition_counter])
     else:
         environment.launch_env(world, random_spawn_point=app_configuration.experiment_random_spawn_point, carla_simulator=True)
-    controller = ControllerCarla()
+        
+    # --- FIX: wait for ROS2 node to be ready ---
+    if ros_version == '2':
+        controller = ControllerCarla(node)
+    else:
+        controller = ControllerCarla()
 
     # Launch control
-    pilot = PilotCarla(app_configuration, controller, brain, experiment_model=experiment_model)
+    if ros_version == '2':
+        pilot = PilotCarla(node, app_configuration, controller, brain, experiment_model=experiment_model)
+    else:
+        pilot = PilotCarla(app_configuration, controller, brain, experiment_model=experiment_model)
+        
     pilot.daemon = True
     pilot.start()
     logger.info('Executing app')
+
+    if ros_version == '2':
+        executor = MultiThreadedExecutor()
+        executor.add_node(node)
+        spin_thread = threading.Thread(target=executor.spin, daemon=True)
+        spin_thread.start()        
+        
     controller.resume_pilot()
     controller.unpause_carla_simulation()
     controller.record_metrics(app_configuration.stats_out, world_counter=world_counter, brain_counter=brain_counter, repetition_counter=repetition_counter)
+    
     if app_configuration.use_world_timeouts:
         experiment_timeout = CARLA_TOWNS_TIMEOUTS[controller.carla_map.name]
     else:
         experiment_timeout = app_configuration.experiment_timeouts[world_counter]
 
-    rospy.sleep(experiment_timeout)
+    if ros_version == '2':
+        rclpy.spin_once(node, timeout_sec=experiment_timeout)
+    else:
+        rospy.sleep(experiment_timeout)
+    logger.info('Experiment timeout reached, stopping the experiment...')  #debug
     controller.stop_recording_metrics()
     controller.pilot.stop()
     controller.stop_pilot()
@@ -146,9 +185,24 @@ def main():
 
     logger.info('closing all processes...')
     controller.pilot.kill()
-    environment.close_ros_and_simulators()
+    
+    # debug: wait a bit to let everything close properly
+    try:
+        environment.close_ros_and_simulators()
+    except Exception as e:
+        logger.warning(f"Error cerrando simuladores: {e}")
+        
     while not controller.pilot.execution_completed:
         time.sleep(1)
+        
+    # --- NEW: shutdown ROS2 node ---
+    if ros_version == '2':
+        if executor is not None:
+            executor.shutdown()
+        if spin_thread is not None:
+            spin_thread.join()
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
