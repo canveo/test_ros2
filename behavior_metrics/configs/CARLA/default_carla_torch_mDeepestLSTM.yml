@@ -38,8 +38,8 @@ Behaviors:
         AsyncMode: True
         Parameters:
             # Model: 'pilotnet_v8.0.pth'
-            Model: 'bubble_deepest_model.pth'
-            # Model: 'dagger_deepest_model_7e5_bs16_4.pth'
+            # Model: 'efficientnet_MC_DAgger_agresivo.onnx'
+            Model: 'efficientnet_CM_dagger.onnx'  # suave
             ImageCropped: False
             # ImageSize: [200,66]
             ImageSize: [800, 600]
@@ -51,8 +51,7 @@ Behaviors:
         Type: 'CARLA'
     Simulation:
         # World: configs/CARLA/CARLA_launch_files/town_02_anticlockwise.launch.py
-        World: configs/CARLA/CARLA_launch_files/town_01_anticlockwise.launch.py
-        RandomSpawnPoint: False
+        World: configs/CARLA/CARLA_launch_files/town02_cannonical_test.launch.py
     Dataset:
         In: '/tmp/my_bag.bag'
         Out: ''

@@ -237,11 +237,11 @@ class Brain:
         
         if self.target_point is not None:
             distance_to_target = np.sqrt(
-                (self.target_point.x - vehicle_location.x) ** 2 +
-                (self.target_point.y - (-vehicle_location.y)) ** 2)
-            
-            # print(f'Euclidean distance to target: {distance_to_target}')
-            if distance_to_target < 1.5:
+                (self.target_point[0] - vehicle_location.x) ** 2 +
+                (self.target_point[1] - (-vehicle_location.y)) ** 2)
+
+            print(f'Euclidean distance to target: {distance_to_target}')
+            if distance_to_target < 3.0:   # aumentado para pistas rapidas antes 1.5
                 self.termination_code = 1
                 arrived = True
                 print(f"======== Arrived at target point {distance_to_target} m away============.")

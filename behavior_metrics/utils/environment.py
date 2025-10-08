@@ -52,6 +52,8 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
         ros_version = os.environ.get('ROS_VERSION', '2')   
         
         if carla_simulator:
+            logger.debug(f"launch_file: {launch_file} ({type(launch_file)})")
+            
             # case ROS 1 with .launch XML file
             if launch_file.endswith('.launch'):
                 xml_path = os.path.join(ROOT_PATH, launch_file)
