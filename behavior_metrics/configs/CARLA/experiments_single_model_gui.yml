@@ -35,11 +35,12 @@ Behaviors:
           MaxW: 0.8
           # MaxV: 3
           # MaxW: 0.3
-    BrainPath: ["brains/CARLA/brain_modifiedDeepestLSTM.py"]
+    BrainPath: ['brains/CARLA/brain_modifiedDeepestLSTM.py']
     PilotTimeCycle: 100 # 10 ms se usa actualmente
     AsyncMode: True
     Parameters:
-      Model: ["efficientnet_control_manual.onnx"]
+      # Model: ['efficientnet_MC_DAgger_agresivo.onnx']
+      Model: ['efficientnet_CM_dagger.onnx']   # suave
       ImageCropped: False
       # ImageSize: [200, 66]
       ImageSize: [800, 600]

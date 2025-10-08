@@ -1,21 +1,30 @@
 import sys
 import threading
 import time
+import os
 from os import path, makedirs
 
 import npyscreen
 # import rospy
 
+ros_version = os.environ.get('ROS_VERSION', '2')
+if ros_version == '2':
+    import rclpy
+    from rclpy.node import Node
+else:
+    import rospy    
+
+
 # Attempt to import rospy (ROS1). If not available, try to import rclpy (ROS2).
-try:
-    import rospy
-    ROS_VERSION = "ros1"
-except ModuleNotFoundError:
-    try:
-        import rclpy
-        ROS_VERSION = "ros2"
-    except ModuleNotFoundError:
-        raise ImportError("Neither rospy nor rclpy is installed. Please install one.")
+# try:
+#     import rospy
+#     ROS_VERSION = "ros1"
+# except ModuleNotFoundError:
+#     try:
+#         import rclpy
+#         ROS_VERSION = "ros2"
+#     except ModuleNotFoundError:
+#         raise ImportError("Neither rospy nor rclpy is installed. Please install one.")
 
 from ui.tui.keyboard_handler import KHandler
 from utils.constants import ROOT_PATH
@@ -86,7 +95,7 @@ class MainForm(npyscreen.FormMultiPage):
     log_data = ""
     
     if not path.exists(logs_path):
-        makedirs(logs_dir)
+        makedirs(logs_dir, exist_ok=True)
         open(logs_path, 'a').close()
     logs = open(logs_path, 'r')
     data = []

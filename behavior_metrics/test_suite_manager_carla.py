@@ -17,8 +17,6 @@ from utils.constants import CARLA_TOWNS_TIMEOUTS
 from utils.traffic import TrafficManager
 from utils.constants import CARLA_TEST_SUITE_DIR, ROOT_PATH
 
-import carla
-
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
@@ -114,21 +112,26 @@ def check_args(argv):
     return config_data
 
 def main():
-    # avoid double init rclpy
+    # debug
     if ros_version == '2':
-        if not rclpy.ok():         
+        if not rclpy.ok():          # evita doble init si algo más ya lo hizo
             rclpy.init()
         node = rclpy.create_node('driver_carla_runner')
     else:
         rospy.init_node('driver_carla_runner')
+    # debug end
         
- 
+        
     config_data = check_args(sys.argv)
     app_configuration = Config(config_data['config'][0])
     world_counter = int(config_data['world_counter'][0])
     brain_counter = int(config_data['brain_counter'][0])
     route_counter = int(config_data['route_counter'][0])
 
+    # logger.info(str(world_counter) + ' ' + str(brain_counter) + ' ' + str(route_counter))
+    # for key, value in app_configuration.__dict__.items():
+    #     logger.debug(f'{key}: {value}')
+    #     print(f'{key}: {value}')
   
     world = app_configuration.current_world[world_counter]
     brain = app_configuration.brain_path[brain_counter]
@@ -145,15 +148,11 @@ def main():
     test_routes_module = importlib.import_module(app_configuration.test_suite)
     TEST_ROUTES = getattr(test_routes_module, 'TEST_ROUTES')
     spawn_point = TEST_ROUTES[route_counter]['start']
-    target_point_raw = TEST_ROUTES[route_counter]['end'].split(', ')
-    target_point = carla.Location(
-        x=float(target_point_raw[0]),
-        y=float(target_point_raw[1]),
-        z=float(target_point_raw[2]) if len(target_point_raw) > 2 else 0.0
-    )
+    target_point = TEST_ROUTES[route_counter]['end'].split(', ')
+    target_point = (float(target_point[0]), float(target_point[1]))
     start_point = spawn_point.split(', ')
     start_point = (float(start_point[0]), float(start_point[1]))
-    logger.info(f'-------from {start_point} to {(target_point.x, target_point.y)}-------')
+    logger.info(f'-------from {start_point} to {target_point}-------')
     town = TEST_ROUTES[route_counter]['map']
     route = TEST_ROUTES[route_counter]['commands']
     app_configuration.brain_kwargs['Route'] = route
@@ -192,19 +191,19 @@ def main():
         experiment_timeout = app_configuration.experiment_timeouts[world_counter]
 
     start_time = time.time()
-    termination_code = 3     
+    termination_code = 3 # timeout  # original en 3 -> debug
     while (time.time() - start_time) < experiment_timeout:
+        # print(f"Termination code------: {pilot.brains.active_brain.termination_code}") # debug
         if ros_version == '2':
             # time.sleep(0.1)
             rclpy.spin_once(node, timeout_sec=0.1)
-        elif ros_version == '1':
-            rospy.sleep(0.1)
         else:
-            time.sleep(0.1) # fallback
-    
-        if pilot.brains.active_brain.termination_code != 0:
-            termination_code = pilot.brains.active_brain.termination_code
-            logger.info(f"Termination code final: {termination_code}")
+            rospy.sleep(0.1)
+        code = getattr(pilot.brains.active_brain, 'termination_code', 1)
+        # logger.info(f"Current termination code ciclo: {code}") # debug
+        if code != 0:
+            # logger.info(f"Termination code final: {code}")
+            termination_code = code
             break
                 
     # rospy.sleep(experiment_timeout)
@@ -216,6 +215,26 @@ def main():
     logger.info('closing all processes...')
     controller.pilot.kill()
     environment.close_ros_and_simulators()
+    
+    
+    # Clean environment
+    import psutil
+
+    def kill_processes_by_name(names):
+        for proc in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
+            try:
+                pname = proc.info.get('name') or ''
+                cmdline = proc.info.get('cmdline') or []
+                for name in names:
+                    if name in pname or any(name in cmd for cmd in cmdline):
+                        print(f"Killing leftover process: {proc.pid} {pname}")
+                        proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+    #### debug: esperar a que el piloto termine
+    
+    
     
     
     while not controller.pilot.execution_completed:
