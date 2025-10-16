@@ -833,3 +833,148 @@ def get_distance_other_vehicle(experiment_metrics, checkpoints, checkpoints_2):
     experiment_metrics['great_distance_pct_km'] = (total_distance and great_distance / total_distance or 0) * 100
     
     return experiment_metrics
+
+# ================================================
+# ------- INPUTS desde CARLA API (sin ROS) -------
+# ================================================
+
+def build_records_from_carla_arrays(poses_xyz, speeds_mps, controls_tuples, collisions_list, lane_inv_list):
+    """
+    Convierte arrays nativos de CARLA en la misma forma que usas con ROS.
+    - poses_xyz: [(x,y,z,t), ...]  t opcional (índice si no hay)
+    - speeds_mps: [(v_mps,t), ...]  o solo [v_mps,...]
+    - controls_tuples: [(throttle, steer, brake, t), ...]
+    - collisions_list: [(x,y,t, other_actor_id), ...]
+    - lane_inv_list: [(x,y,t), ...]
+    Devuelve: data_by_topic-like dicts (sin ROS).
+    """
+    data = {}
+
+    # Odometry-like
+    odom = []
+    for i, p in enumerate(poses_xyz):
+        x,y = p[0], p[1]
+        odom.append({'pose.pose.position.x': x, 'pose.pose.position.y': y, 'Time': i})
+    data['/carla/ego_vehicle/odometry'] = odom
+
+    # Speedometer-like (m/s → como ya usas *3.6 dentro de get_average_speed)
+    spd = []
+    for i, v in enumerate(speeds_mps):
+        v_val = v[0] if isinstance(v, (list,tuple)) else v
+        spd.append({'data': v_val, 'Time': i})
+    data['/carla/ego_vehicle/speedometer'] = spd
+
+    # Vehicle status-like
+    vs = []
+    for i, c in enumerate(controls_tuples):
+        thr, st, br = c[0], c[1], c[2]
+        vs.append({'control.throttle': thr, 'control.steer': st, 'control.brake': br, 'Time': i})
+    data['/carla/ego_vehicle/vehicle_status'] = vs
+
+    # Collisions (opcional)
+    coll = []
+    for c in collisions_list or []:
+        x, y = c[0], c[1]
+        other = c[3] if len(c) > 3 else None
+        coll.append({'pose.pose.position.x': x, 'pose.pose.position.y': y, 'other_actor_id': other, 'Time': c[2] if len(c)>2 else 0})
+    if coll:
+        data['carla/ego_vehicle/collision'] = coll
+
+    # Lane invasions (opcional)
+    lanes = []
+    for li in lane_inv_list or []:
+        x, y = li[0], li[1]
+        lanes.append({'pose.pose.position.x': x, 'pose.pose.position.y': y, 'Time': li[2] if len(li)>2 else 0})
+    if lanes:
+        data['/carla/ego_vehicle/lane_invasion'] = lanes
+
+    # Clock sim (mínimo para tiempos)
+    data['/clock'] = [{'clock.secs': i, 'Time': i} for i in range(len(odom))]
+
+    return data
+
+
+def compute_metrics_from_dict(experiment_metrics, data_by_topic, map_waypoints, experiment_metrics_filename, config):
+    """
+    Reutiliza TODA tu lógica actual de métricas, pero en vez de leer bag,
+    recibe el dict 'data_by_topic' construido arriba.
+    """
+    # Copia del bloque central de get_metrics, pero sin abrir bag:
+    required = ['/carla/ego_vehicle/odometry', '/carla/ego_vehicle/speedometer', '/carla/ego_vehicle/vehicle_status', '/clock']
+    if not all(t in data_by_topic for t in required):
+        logger.error("Missing required series for metrics.")
+        return {}
+
+    # A partir de aquí, tus mismas líneas (resumen):
+    odometry_msgs = data_by_topic['/carla/ego_vehicle/odometry']
+    checkpoints = [{'pose.pose.position.x': m['pose.pose.position.x'],
+                    'pose.pose.position.y': m['pose.pose.position.y'],
+                    'Time': m.get('Time', i)} for i, m in enumerate(odometry_msgs)]
+    dataframe_pose = pd.DataFrame(checkpoints)
+
+    dataframe_clock = pd.DataFrame([{'clock.secs': m['clock.secs'], 'Time': m.get('Time', i)} for i, m in enumerate(data_by_topic['/clock'])])
+    seconds_start = dataframe_clock.iloc[0]['clock.secs']
+    seconds_end   = dataframe_clock.iloc[-1]['clock.secs']
+
+    if 'carla/ego_vehicle/collision' in data_by_topic:
+        dataframe_collision = pd.DataFrame([{'Time': m.get('Time', i),
+                                             'pose.pose.position.x': m['pose.pose.position.x'],
+                                             'pose.pose.position.y': m['pose.pose.position.y'],
+                                             'other_actor_id': m.get('other_actor_id', None)} for i, m in enumerate(data_by_topic['carla/ego_vehicle/collision'])])
+        collision_points = dataframe_collision.to_dict('records')
+    else:
+        collision_points = []
+
+    lane_invasion_points = []
+    if '/carla/ego_vehicle/lane_invasion' in data_by_topic:
+        dataframe_lane = pd.DataFrame([{'Time': m.get('Time', i),
+                                        'pose.pose.position.x': m['pose.pose.position.x'],
+                                        'pose.pose.position.y': m['pose.pose.position.y']} for i, m in enumerate(data_by_topic['/carla/ego_vehicle/lane_invasion'])])
+        lane_invasion_points = dataframe_lane.to_dict('records')
+
+    dataframe_speedometer = pd.DataFrame([{'data': m['data'], 'Time': m.get('Time', i)} for i, m in enumerate(data_by_topic['/carla/ego_vehicle/speedometer'])])
+    speedometer_points = dataframe_speedometer.to_dict('records')
+
+    dataframe_vehicle_status = pd.DataFrame([{'control.throttle': m['control.throttle'],
+                                              'control.steer': m['control.steer'],
+                                              'control.brake': m['control.brake'],
+                                              'Time': m.get('Time', i)} for i, m in enumerate(data_by_topic['/carla/ego_vehicle/vehicle_status'])])
+    vehicle_status_points = dataframe_vehicle_status.to_dict('records')
+
+    # Reusa tus funciones tal cual:
+    if map_waypoints:
+        experiment_metrics = get_percentage_completed(experiment_metrics, checkpoints, map_waypoints)
+
+    if len(checkpoints) > 1:
+        starting_point = (checkpoints[0]['pose.pose.position.x'], checkpoints[0]['pose.pose.position.y'])
+        experiment_metrics['starting_point'] = starting_point
+        experiment_metrics = get_distance_completed(experiment_metrics, checkpoints)
+        experiment_metrics = get_average_speed(experiment_metrics, speedometer_points)
+        experiment_metrics = get_suddenness_control_commands(experiment_metrics, vehicle_status_points)
+        experiment_metrics, collisions_checkpoints = get_collisions(experiment_metrics, collision_points, dataframe_pose)
+        experiment_metrics, lane_invasion_checkpoints = get_lane_invasions(experiment_metrics, lane_invasion_points, dataframe_pose)
+        experiment_metrics['experiment_total_simulated_time'] = seconds_end - seconds_start
+
+        experiment_metrics = get_position_deviation_and_effective_completed_distance(
+            experiment_metrics, checkpoints, map_waypoints, experiment_metrics_filename,
+            speedometer_points, collisions_checkpoints, lane_invasion_checkpoints
+        )
+        experiment_metrics['completed_laps'] = get_completed_laps(checkpoints, starting_point)
+        return experiment_metrics
+    return {}
+
+# ------- OUTPUTS: save as CSV/JSON -------
+
+def save_series_to_csv(out_dir, data_by_topic):
+    os.makedirs(out_dir, exist_ok=True)
+    for topic, rows in data_by_topic.items():
+        safe = topic.strip('/').replace('/', '_')
+        pd.DataFrame(rows).to_csv(os.path.join(out_dir, f"{safe}.csv"), index=False)
+
+def save_metrics_to_json(out_path, experiment_metrics: dict):
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    import json
+    with open(out_path, 'w') as f:
+        json.dump(experiment_metrics, f, indent=2)
+
+

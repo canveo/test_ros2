@@ -23,6 +23,16 @@ except ModuleNotFoundError as ex:
     
 from robot.interfaces.speedometer import ListenerSpeedometer
 
+# Backends CARLA (--NEW--)
+try:
+    from robot.interfaces.carla_api.sensors import (
+        CarlaCamera, CarlaLidar, CarlaPose3D, CarlaSpeedometer, CarlaBirdEyeView
+    )
+except Exception as _exc:
+    # no fallr si no esta disponible; solo se usara si se elige bakend carla_api
+    CarlaCamera = CarlaLidar = CarlaPose3D = CarlaSpeedometer = CarlaBirdEyeView = None
+
+
 __author__ = 'fqez'
 __contributors__ = []
 __license__ = 'GPLv3'
@@ -37,13 +47,19 @@ class Sensors:
         pose3d {dict} -- Dictionary which key is the name of the motor and value is an odometry instance.
     """
 
-    def __init__(self, sensors_config, node):
+    def __init__(self, sensors_config: dict, node=None, *,
+                 backend: str = "ros",
+                 carla_ctx: dict | None = None):
         """Constructor of the class
 
         Arguments:
             sensors_config {dict} -- Configuration of the different sensors.
+            node: node "ros" or "carla_api"
+            carla_ctx: only for backend="carla_api"
         """
         self.node = node
+        self.backend = backend
+        self.carla_ctx  = carla_ctx or {}
 
         # Load cameras
         cameras_conf = sensors_config.get('Cameras', None)
@@ -73,6 +89,24 @@ class Sensors:
         self.speedometer = None
         if speedometer_conf:
             self.speedometer = self.__create_sensor(speedometer_conf, 'speedometer')
+            
+    def _create_group(self, group_conf: dict | None, sensor_type: str):
+        if not group_conf:
+            return None
+                
+        out = {}
+        for key, scfg in scfg.get('Name', key):
+            name = scfg.get('Name', key)
+            
+            if self.backend == "ros":
+                inst = self._create_ros_sensor(sensor_type, scfg)
+            elif self.backend == "carla_api":
+                inst = self._create_carla_sensor(sensor_type, scfg)
+            else:
+                raise ValueError(f"Unknown backend: {self.backend}")
+            
+            out[name] = inst
+        return
 
     def __create_sensor(self, sensor_config, sensor_type):
         """Fill the sensor dictionary with instances of the sensor_type and sensor_config"""

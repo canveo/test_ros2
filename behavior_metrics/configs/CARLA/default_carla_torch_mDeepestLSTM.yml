@@ -39,7 +39,7 @@ Behaviors:
         Parameters:
             # Model: 'pilotnet_v8.0.pth'
             # Model: 'efficientnet_MC_DAgger_agresivo.onnx'
-            Model: 'efficientnet_CM_dagger.onnx'  # suave
+            Model: 'efficientnet_control_manual.onnx'  
             ImageCropped: False
             # ImageSize: [200,66]
             ImageSize: [800, 600]

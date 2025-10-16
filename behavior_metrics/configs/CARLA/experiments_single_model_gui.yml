@@ -1,87 +1,135 @@
+# =========================================
+# Behavior Metrics — Config maestro
+# Incluye sensores (ROS o CARLA API), modelo, experimento y simulación
+# =========================================
+
+# --------- Perfiles comunes (anchors) ---------
+Profiles:
+
+  # ---- Parámetros comunes del MODELO (ancla) ----
+  ModelCommon: &model_common
+    ImageCropped: false
+    ImageSize: [800, 600]         # [W, H]
+    ImageNormalized: false
+    PredictionsNormalized: false
+    GPU: true
+    UseOptimized: false            # TensorRT/ONNXRuntime optimizado
+    ImageTransform: ""             # pipeline de transform (si aplica)
+    InputChannels: 3               # 1/3 según tu backbone
+    MeanStd: [0.0, 1.0]            # [mean, std] si normalizas
+    MoE:
+      Enabled: false               # activar si usas expertos
+      Gate: "curvature"            # ejemplo: curvature/speed/learned
+      Experts: 2
+
+  # ---- SENSORES: backend ROS (ancla) ----
+  SensorsROS: &sensors_ros
+    Backend: ros
+    Cameras:
+      Camera_0: { Name: "rgb_front",  Topic: "/carla/ego_vehicle/rgb_front/image" }
+      Camera_1: { Name: "rgb_view",   Topic: "/carla/ego_vehicle/rgb_view/image" }
+      Camera_2: { Name: "seg_front",  Topic: "/carla/ego_vehicle/semantic_segmentation_front/image" }
+      Camera_3: { Name: "dvs_front",  Topic: "/carla/ego_vehicle/dvs_front/image" }
+    Pose3D:
+      Pose3D_0: { Name: "pose",       Topic: "/carla/ego_vehicle/odometry" }
+    BirdEyeView:
+      BirdEyeView_0: { Name: "bev",   Topic: "" }
+    Speedometer:
+      Speedometer_0: { Name: "speedo", Topic: "/carla/ego_vehicle/speedometer" }
+
+  # ---- SENSORES: backend CARLA API (ancla) ----
+  SensorsCARLA: &sensors_carla_api
+    Backend: carla_api
+    Cameras:
+      Cam_Front:
+        Name: "rgb_front"
+        Transform: {x: 1.5, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 0}
+        FPS: 20
+        Params: { type: "sensor.camera.rgb", width: 800, height: 600, fov: 90 }
+      Cam_View:
+        Name: "rgb_view"
+        Transform: {x: 0.0, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 180}
+        FPS: 20
+        Params: { type: "sensor.camera.rgb", width: 800, height: 600, fov: 90 }
+      Cam_Seg:
+        Name: "seg_front"
+        Transform: {x: 1.5, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 0}
+        FPS: 10
+        Params: { type: "sensor.camera.semantic_segmentation", width: 800, height: 600 }
+      Cam_DVS:
+        Name: "dvs_front"
+        Transform: {x: 1.5, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 0}
+        FPS: 30
+        Params: { type: "sensor.camera.dvs", width: 640, height: 480 }
+    Pose3D:
+      Pose3D_0:
+        Name: "pose"       # se obtiene de vehicle.get_transform()
+    BirdEyeView:
+      BirdEyeView_0:
+        Name: "bev"        # opcional: cenital semántica
+        Params: { type: "sensor.camera.semantic_segmentation", z: 25 }
+    Speedometer:
+      Speedometer_0:
+        Name: "speedo"     # se obtiene de vehicle.get_velocity()
+
+  # ---- ACTUADORES (común para ambos backends) ----
+  ActuatorsCommon: &actuators_common
+    CARLA_Motors:
+      Motors_0:
+        Name: "motors_0"
+        Topic: "/carla/ego_vehicle/vehicle_control_cmd"   # ROS: usado por Publisher
+        # En CARLA API el backend aplicará VehicleControl() directamente
+        MaxV: 25
+        MaxW: 0.8
+
+  # ---- Layout de paneles (ancla) ----
+  LayoutCommon: &layout_common
+    Frame_0: { Name: frame_0, Geometry: [1, 1, 1, 1], Data: rgbimage }
+    Frame_1: { Name: frame_1, Geometry: [0, 1, 1, 1], Data: rgbimage }
+    Frame_2: { Name: frame_2, Geometry: [0, 2, 1, 1], Data: rgbimage }
+    Frame_3: { Name: frame_3, Geometry: [1, 2, 1, 1], Data: rgbimage }
+
+# --------- Selección del perfil (elige uno) ---------
+# Cambia Sensors entre *sensors_ros y *sensors_carla_api según backend
 Behaviors:
   Robot:
-    Sensors:
-      Cameras:
-        Camera_0:
-          Name: "camera_0"
-          Topic: "/carla/ego_vehicle/rgb_front/image"
-        Camera_1:
-          Name: "camera_1"
-          Topic: "/carla/ego_vehicle/rgb_view/image"
-        Camera_2:
-          Name: "camera_2"
-          Topic: "/carla/ego_vehicle/semantic_segmentation_front/image"
-          Camera_3:
-              Name: 'camera_3'
-              Topic: '/carla/ego_vehicle/dvs_front/image'
-      Pose3D:
-        Pose3D_0:
-          Name: "pose3d_0"
-          Topic: "/carla/ego_vehicle/odometry"
-      BirdEyeView:
-        BirdEyeView_0:
-          Name: "bird_eye_view_0"
-          Topic: ""
-      Speedometer:
-        Speedometer_0:
-          Name: "speedometer_0"
-          Topic: "/carla/ego_vehicle/speedometer"
-    Actuators:
-      CARLA_Motors:
-        Motors_0:
-          Name: "motors_0"
-          Topic: "/carla/ego_vehicle/vehicle_control_cmd"
-          MaxV: 25
-          MaxW: 0.8
-          # MaxV: 3
-          # MaxW: 0.3
-    BrainPath: ['brains/CARLA/brain_modifiedDeepestLSTM.py']
-    PilotTimeCycle: 100 # 10 ms se usa actualmente
-    AsyncMode: True
+    Sensors: *sensors_carla_api          # <-- pon *sensors_ros si usas tópicos ROS
+    Actuators: *actuators_common
+    BrainPath: ['brains/CARLA/brain_efficientnet.py']
+    PilotTimeCycle: 100                  # ms del ciclo (10 ms típicamente)
+    AsyncMode: true
     Parameters:
-      # Model: ['efficientnet_MC_DAgger_agresivo.onnx']
-      Model: ['efficientnet_CM_dagger.onnx']   # suave
-      ImageCropped: False
-      # ImageSize: [200, 66]
-      ImageSize: [800, 600]
-      ImageNormalized: Falses
-      PredictionsNormalized: False
-      GPU: True
-      UseOptimized: False
-      ImageTranform: ''
-    Type: "CARLA"  
+      <<: *model_common
+      # Modelo(s) a cargar (puedes listar varios)
+      Model: ['DAgger_MC_agresivo_2.onnx']
+      # Ejemplo: override de MoE por escenario
+      # MoE: { Enabled: true, Gate: "curvature", Experts: 2 }
+    Type: "CARLA"
+
   Experiment:
-      Name: "Carla Town02 Test Suite"
-      Description: "Testing model in Town02 with each route consisting of two turns."
-      UseWorldTimeouts: False
-      Timeout: [700] # for each world!
-      Repetitions: 1
+    Name: "Carla Town02 Test Suite"
+    Description: "Testing model in Town02 with each route consisting of two turns."
+    UseWorldTimeouts: false
+    Timeout: [700]                 # uno por cada world si pones varios
+    Repetitions: 1
+
   Simulation:
-    Task: "follow_route"
-    RandomSpawnPoint: False
-    World: [configs/CARLA/CARLA_launch_files/town02_cannonical_test.launch.py]
+    Task: "follow_route"           # follow_route | follow_lane | follow_lane_traffic
+    RandomSpawnPoint: false
+    World:
+      - configs/CARLA/CARLA_launch_files/town02_cannonical_test.launch.py
     TestSuite: "Town02_two_turns"
-    RandomizeRoutes: False
+    RandomizeRoutes: false
+    # Opcionales si controlas el loop sim:
+    FixedDeltaSeconds: 0.05        # 20 FPS
+    SynchronousMode: true
+
   Dataset:
     In: "/tmp/my_bag.bag"
-    Out: ""
+    Out: ""                        # salida si grabas dataset
+
   Stats:
     Out: "./"
     PerfectLap: "./perfect_bags/lap-simple-circuit.bag"
-  Layout:
-    Frame_0:
-      Name: frame_0
-      Geometry: [1, 1, 1, 1]
-      Data: rgbimage
-    Frame_1:
-      Name: frame_1
-      Geometry: [0, 1, 1, 1]
-      Data: rgbimage
-    Frame_2:
-      Name: frame_2
-      Geometry: [0, 2, 1, 1]
-      Data: rgbimage
-    Frame_3:
-      Name: frame_3
-      Geometry: [1, 2, 1, 1]
-      Data: rgbimage
+
+  Layout: *layout_common

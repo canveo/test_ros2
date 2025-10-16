@@ -57,9 +57,13 @@ try:
 except ModuleNotFoundError as ex:
     logger.error('CARLA is not supported')
 from PIL import Image as PILImage
+
 __author__ = 'sergiopaniego'
 __contributors__ = []
 __license__ = 'GPLv3'
+
+METRICS_BACKEND = os.environ.get("METRICS_BACKEND") # "carla_api"
+
 
 # debug. function to convert numpy types to native python types
 def convert_np_to_native(obj):
@@ -128,6 +132,20 @@ class ControllerCarla:
         # TODO: agregar solo waypoints de la ruta deseada
         self.map_waypoints = self.carla_map.generate_waypoints(0.5)
         self.weather = self.world.get_weather()
+        
+        # campos para loggin con python api
+        self.metrics_live_enabled = (METRICS_BACKEND == "carla_api")
+        self._poses_xyz = []         # (x,y,z,t)
+        self._speeds_mps = []        # v (m/s) o (v,t)
+        self._controls = []          # (thr, steer, brake, t)
+        self._collisions = []        # (x,y,t, other_actor_id)
+        self._lane_invasions = []    # (x,y,t)
+
+        self._collision_sensor = None
+        self._lane_sensor = None
+        self._tick_conn = None
+        self._sim_start_time = None
+
                
     # GUI update
     def update_frame(self, frame_id, data):

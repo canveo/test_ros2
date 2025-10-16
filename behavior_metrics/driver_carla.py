@@ -71,6 +71,10 @@ def check_args(argv):
                         action='store_true',
                         help='{}Run Behavior Metrics F1 with random spawning{}'.format(
                             Colors.OKBLUE, Colors.ENDC))
+    parser.add_argument('--backend',
+                        choices=['ros', 'carla_api'],
+                        default='ros',
+                        help='Backend de I/O de sensores/actuadores: ros | carla_api')
 
     args = parser.parse_args()
     
@@ -100,6 +104,9 @@ def check_args(argv):
 
     if args.random:
         config_data['random'] = args.random
+        
+    if args.backend:
+        config_data['backend'] = args.backend
 
     return config_data
 

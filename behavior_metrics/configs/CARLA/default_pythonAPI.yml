@@ -1,0 +1,51 @@
+Behaviors:
+  Robot:
+    Sensors:
+      Backend: carla_api   # <-- "ros" | "carla_api"
+      Cameras:
+        Camera_0:
+          Name: "front_rgb"
+          # ROS: Topic: "/carla/ego_vehicle/rgb_front/image"
+          # CARLA API:
+          Transform: {x: 1.5, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 0}
+          FPS: 20
+          Params: {width: 800, height: 600, fov: 90, type: "sensor.camera.rgb"}
+        Camera_1:
+          Name: "rear_rgb"
+          Transform: {x: -1.0, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 180}
+          FPS: 20
+          Params: {width: 800, height: 600, fov: 90, type: "sensor.camera.rgb"}
+        Camera_2:
+          Name: "front_seg"
+          Transform: {x: 1.5, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 0}
+          FPS: 10
+          Params: {width: 800, height: 600, type: "sensor.camera.semantic_segmentation"}
+        Camera_3:
+          Name: "front_dvs"
+          Transform: {x: 1.5, y: 0.0, z: 2.0, roll: 0, pitch: 0, yaw: 0}
+          FPS: 30
+          Params: {width: 640, height: 480, type: "sensor.camera.dvs"}
+      Pose3D:
+        Pose3D_0:
+          Name: "pose"
+          # ROS: Topic: "/carla/ego_vehicle/odometry"
+          # CARLA API: sin Topic (se lee de vehicle.get_transform/get_velocity)
+      BirdEyeView:
+        BirdEyeView_0:
+          Name: "bev"
+          # ROS: Topic: ""
+          # CARLA API: opcional -> usa semantic/top camera
+          Params: {type: "sensor.camera.semantic_segmentation", z: 25}
+      Speedometer:
+        Speedometer_0:
+          Name: "speedo"
+          # ROS: Topic: "/carla/ego_vehicle/speedometer"
+          # CARLA API: sin Topic (se calcula desde vehicle.get_velocity)
+    Actuators:
+      CARLA_Motors:
+        Motors_0:
+          Name: "motors_0"
+          # ROS: Topic: "/carla/ego_vehicle/vehicle_control_cmd"
+          # CARLA API: sin Topic (aplica carla.VehicleControl)
+          MaxV: 25
+          MaxW: 0.8
