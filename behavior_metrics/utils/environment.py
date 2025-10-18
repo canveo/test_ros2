@@ -31,7 +31,9 @@ __contributors__ = []
 __license__ = 'GPLv3'
 
 
-ros_version = os.environ.get('ROS_VERSION', '2')
+# Import ROS only if needed
+ROS_VERSION = os.environ.get('ROS_VERSION', 'None')
+USE_ROS = ROS_VERSION in ('1', '2')
 
 def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, config_spawn_point=None, config_town=None):
     """Launch the environmet specified by the launch_file given in command line at launch time.
@@ -49,7 +51,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
         launch_file_path = None
         
         # detected ROS version
-        ros_version = os.environ.get('ROS_VERSION', '2')   
+        ROS_VERSION = os.environ.get('ROS_VERSION', '2')   
         
         if carla_simulator:
             # case ROS 1 with .launch XML file
@@ -59,7 +61,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
                 root = tree.getroot()               
 
             # case ROS 2 with .launch.py (use towns file -.launch XML)
-            elif launch_file.endswith('.launch.py') and ros_version == '2':
+            elif launch_file.endswith('.launch.py') and ROS_VERSION == '2':
                 xml_path = os.path.join(ROOT_PATH, launch_file.replace('.launch.py', '.launch'))
                 if not os.path.exists(xml_path):
                     logger.warning(f"No XML 'twins' file found for {launch_file}, will not be readable town/spawn_point.")
@@ -86,7 +88,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
                 # write temporary launch file with the selected town and spawn point
                 tmp_launch = os.path.join(ROOT_PATH, 'tmp_circuit.launch')
                 tree.write(tmp_launch)
-                if ros_version == '1':
+                if ROS_VERSION == '1':
                     launch_file = 'tmp_circuit.launch'
                 else:
                     # ROS 2 needs the .launch.py file, so copy it too
@@ -97,7 +99,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
 
             # launch carla simulator
             with open("/tmp/.carlalaunch_stdout.log", "w") as out, open("/tmp/.carlalaunch_stderr.log", "w") as err:
-                if ros_version == '2':
+                if ROS_VERSION == '2':
                     # tree = ET.parse(ROOT_PATH + '/' + launch_file.replace('.launch.py', '.launch'))
                     # root = tree.getroot()
                     quality = root.find(".//*[@name=\"quality\"]") if root is not None else None
@@ -122,7 +124,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
             
             # ROS (1 or 2) launch file
             with open("/tmp/.roslaunch_stdout.log", "w") as out, open("/tmp/.roslaunch_stderr.log", "w") as err:
-                if ros_version == '2':
+                if ROS_VERSION == '2':
                     # launch_path = os.path.join(ROOT_PATH, launch_file)
                     # ros_cmd = ["ros2", "launch", ROOT_PATH, launch_file]
                     # package =  "behavior_metrics"  # file like package/launch/file.launch.py
@@ -137,7 +139,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False, con
             # launch ROS without carla simulator
             with open("/tmp/.roslaunch_stdout.log", "w") as out, open("/tmp/.roslaunch_stderr.log", "w") as err:
                 # if os.environ.get('ROS_VERSION', '1') == '2':
-                if ros_version == '2':
+                if ROS_VERSION == '2':
                     launch_path = os.path.join(ROOT_PATH, launch_file)
                     ros_cmd = ['ros2', 'launch', launch_path]
                     # ros_cmd = ["ros2", "launch", launch_file]

@@ -5,12 +5,17 @@ from geometry_msgs.msg import Twist
 import threading
 from .threadPublisher import ThreadPublisher
 
-ros_version = os.environ.get('ROS_VERSION', '2')
-if ros_version == '2':
+ROS_VERSION = os.environ.get('ROS_VERSION  ', "None")
+USE_ROS = ROS_VERSION   in ('1', '2')
+
+
+if ROS_VERSION == '2':
     import rclpy
     from rclpy.node import Node
-else:
+elif ROS_VERSION == '1':
     import rospy    
+else:
+    pass # no ROS
 
 try:
     from carla_msgs.msg import CarlaEgoVehicleControl
@@ -85,8 +90,6 @@ class CARLAVel():
         s = s + "\n   manual_gear_shift: " + str(self.manual_gear_shift) + "\n}"
         return s
 
-
-
 class PublisherMotors:
 
     def __init__(self, node: Node, topic: str, maxV, maxW, v, w):
@@ -97,7 +100,7 @@ class PublisherMotors:
         self.w = w
         self.topic = topic
         self.data = CMDVel()
-        if ros_version == '2':
+        if ROS_VERSION  == '2':
             # rclpy.init()    
             self.pub = self.node.create_publisher(Twist, self.topic, 1)
         else:   
@@ -182,7 +185,7 @@ class PublisherCARLAMotors:
         self.w = w
         self.topic = topic
         self.data = CARLAVel()
-        if ros_version == '2':
+        if ROS_VERSION  == '2':
             self.pub = self.node.create_publisher(CarlaEgoVehicleControl, self.topic, 1)
         else:  
             self.pub = rospy.Publisher(self.topic, CarlaEgoVehicleControl, queue_size=1)
@@ -201,7 +204,7 @@ class PublisherCARLAMotors:
 
     def stop(self):
         self.kill_event.set()
-        if ros_version == '2':
+        if ROS_VERSION  == '2':
             if self.pub is not None:                
                 self.node.destroy_publisher(self.pub)
                 self.pub = None

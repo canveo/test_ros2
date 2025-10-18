@@ -31,11 +31,11 @@ Behaviors:
                     MaxV: 3
                     MaxW: 0.3
         InitialPosition: '262.6 327.0 1.0 0.0 0.0 180.0'
-        BrainPath: 'brains/CARLA/brain_carla_slow_and_turn.py'
+        BrainPath: ['brains/CARLA/brain_carla_slow_and_turn.py']
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time
         Parameters:
-            Model: ''
+            Model: ["efficientnet_control_manual.onnx"]
             ImageCropped: True
             ImageSize: [ 200,66 ]
             ImageNormalized: True
@@ -45,9 +45,13 @@ Behaviors:
             ImageTranform: ''
         Type: 'CARLA'
     Simulation:
-        World: configs/CARLA/default_carla_api.yml
+        Task: "follow_route"
+        RandomSpawnPoint: False
+        World: [configs/CARLA/test_python_api.yml]
         Map: 'Town02'
         RandomSpawnPoint: False
+        TestSuite: "Town02_two_turns"
+        RandomizeRoutes: False
     Dataset:
         In: '/tmp/my_bag'
         Out: ''

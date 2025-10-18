@@ -25,12 +25,25 @@ from robot.sensors import Sensors
 from utils.logger import logger
 from utils.constants import MIN_EXPERIMENT_PERCENTAGE_COMPLETED, ROOT_PATH
 
-ros_version = os.environ.get('ROS_VERSION', '2')
-if ros_version == '2':
+# ros_version = os.environ.get('ROS_VERSION', '2')
+# if ros_version == '2':
+#     import rclpy
+#     from rclpy.node import Node
+# else:    
+#     import rospy
+    
+
+ROS_VERSION  = os.environ.get('ROS_VERSION ', "None")
+USE_ROS = ROS_VERSION  in ('1', '2')
+
+
+if ROS_VERSION  == "2":
     import rclpy
     from rclpy.node import Node
-else:    
+elif ROS_VERSION  == "1":
     import rospy
+else:
+    pass # no ROS
 
 from rosgraph_msgs.msg import Clock
 from carla_msgs.msg import CarlaControl
@@ -57,7 +70,7 @@ class PilotCarla(threading.Thread):
         brains {brains.brains_handler.Brains} -- Brains controller instance
     """
 
-    def __init__(self, node: Node, configuration, controller, brain_path, experiment_model=None):
+    def __init__(self, *args, **kwargs): #self, node: Node, configuration, controller, brain_path, experiment_model=None):
         """Constructor of the pilot class
 
         Arguments:
@@ -65,6 +78,19 @@ class PilotCarla(threading.Thread):
             controller {utils.controller.Controller} -- Controller instance of the MVC of the application
         """
         self.node = node
+        node = None
+        if len(args) >= 4 and hasattr(args[0], '__class__') and not isinstance(args[0], (dict, str)):
+            # Caso ROS clásico
+            node, configuration, controller, brain_path = args[:4]
+            rest = args[4:]
+        else:
+            # Caso Python API (sin node)
+            configuration, controller, brain_path = args[:3]
+            rest = args[3:]
+
+        self.node = kwargs.pop('node', node)
+        experiment_model = kwargs.pop('experiment_model', None)
+        
         self.stop_event = threading.Event()
         self.kill_event = threading.Event()
         threading.Thread.__init__(self, args=self.stop_event)
@@ -137,7 +163,7 @@ class PilotCarla(threading.Thread):
         self.sensors.get_camera('camera_0').total_frames = 0
         self.pilot_start_time = time.time()
         
-        if ros_version == '2':
+        if ROS_VERSION  == '2':
             control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
         else:
             control_pub = rospy.Publisher('/carla/control', CarlaControl, queue_size=1)  
@@ -150,12 +176,12 @@ class PilotCarla(threading.Thread):
         while not self.kill_event.is_set():
             if not self.stop_event.is_set():
                 if self.waypoint_publisher is None and self.waypoint_publisher_path is not None:
-                    if ros_version == '2':
+                    if ROS_VERSION  == '2':
                         self.waypoint_publisher = subprocess.Popen(["ros2", "launch", ROOT_PATH + '/' + self.waypoint_publisher_path])
                     else:
                         self.waypoint_publisher = subprocess.Popen(["roslaunch", ROOT_PATH + '/' + self.waypoint_publisher_path])
                 
-                if ros_version == '2':
+                if ROS_VERSION  == '2':
                     if not hasattr(self, 'control_pub'):
                         # control_pub = self.controller.create_publisher(CarlaControl, '/carla/control', 1) 
                         self.control_pub = self.node.create_publisher(CarlaControl, '/carla/control', 1)
@@ -245,13 +271,13 @@ class PilotCarla(threading.Thread):
         return False
 
     def clock_callback(self, clock_data):
-        if ros_version == '2':
+        if ROS_VERSION  == '2':
             self.ros_clock_time = clock_data.clock.sec + clock_data.clock.nanosec * 1e-9
         else:
             self.ros_clock_time = clock_data.clock.to_sec()
 
     def track_stats(self):
-        if ros_version == '2':      
+        if ROS_VERSION  == '2':      
             self.clock_subscriber = self.node.create_subscription(Clock, '/clock', self.clock_callback, 1)
         else:
             self.clock_subscriber = rospy.Subscriber("/clock", Clock, self.clock_callback)

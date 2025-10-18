@@ -481,7 +481,7 @@ class World(object):
                 sensor.stop()
                 sensor.destroy()
         for camera in self.camera_list:
-            if sensor is not None:
+            if sensor is not None:   #  revisar
                 camera.destroy()
         if self.player is not None:
             self.player.destroy()

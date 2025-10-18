@@ -19,6 +19,7 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 import shlex
 import subprocess
 import threading
+import weakref   # 
 import cv2
 # import rospy
 import os
@@ -30,33 +31,80 @@ from utils.logger import logger
 
 import pickle
 
-ros_version = os.environ.get('ROS_VERSION',"2")
+ROS_VERSION = os.environ.get('ROS_VERSION', "None")
+USE_ROS = ROS_VERSION in ('1', '2')
 
-if ros_version == "2":
-    import rclpy
-    from rclpy.node import Node
-else:
-    import rospy
-    import rosbag
+print("Controller CARLA ROS VERSION:", ROS_VERSION)
+
+# if ROS_VERSION == "2":
+#     import rclpy
+#     from rclpy.node import Node
+# elif ROS_VERSION == "1":
+#     import rospy
+#     import rosbag
+# else:
+#     pass # no ROS
     
 try:
     import carla
 except ModuleNotFoundError as ex:
     logger.error('CARLA is not supported')
     
-from std_srvs.srv import Empty
-from sensor_msgs.msg import Image as RosImage
-from cv_bridge import CvBridge
-from datetime import datetime
-from std_msgs.msg import String
-from utils import metrics_carla
-from utils.constants import CARLA_INFRACTION_PENALTIES
-try:
-    from carla_msgs.msg import CarlaLaneInvasionEvent
-    from carla_msgs.msg import CarlaCollisionEvent
-except ModuleNotFoundError as ex:
-    logger.error('CARLA is not supported')
+# from std_srvs.srv import Empty
+# from sensor_msgs.msg import Image as RosImage
+# from cv_bridge import CvBridge
+# from datetime import datetime
+# from std_msgs.msg import String
+# from utils import metrics_carla
+# from utils.constants import CARLA_INFRACTION_PENALTIES
+# try:
+#     from carla_msgs.msg import CarlaLaneInvasionEvent
+#     from carla_msgs.msg import CarlaCollisionEvent
+# except ModuleNotFoundError as ex:
+#     logger.error('CARLA is not supported')
+
+
+# Stubs por defecto cuando no hay ROS
+Node = object
+RosImage = None
+String = None
+CvBridge = None
+CarlaLaneInvasionEvent = None
+CarlaCollisionEvent = None
+
+if ROS_VERSION == 'ros2':
+    import rclpy
+    from rclpy.node import Node
+    from std_msgs.msg import String
+    from sensor_msgs.msg import Image as RosImage
+    try:
+        from cv_bridge import CvBridge
+    except Exception:
+        CvBridge = None
+    try:
+        from carla_msgs.msg import CarlaLaneInvasionEvent, CarlaCollisionEvent
+    except Exception:
+        CarlaLaneInvasionEvent = None
+        CarlaCollisionEvent = None
+
+elif ROS_VERSION== 'ros1':
+    import rospy
+    from std_msgs.msg import String
+    from sensor_msgs.msg import Image as RosImage
+    try:
+        from cv_bridge import CvBridge
+    except Exception:
+        CvBridge = None
+    try:
+        from carla_msgs.msg import CarlaLaneInvasionEvent, CarlaCollisionEvent
+    except Exception:
+        CarlaLaneInvasionEvent = None
+        CarlaCollisionEvent = None
+
+
 from PIL import Image as PILImage
+
+
 __author__ = 'sergiopaniego'
 __contributors__ = []
 __license__ = 'GPLv3'
@@ -95,7 +143,7 @@ class ControllerCarla:
         self.data = {}
         self.pose3D_data = None
         self.recording = False
-        self.cvbridge = CvBridge()
+        self.cvbridge = CvBridge() 
         
         self.rosbag_proc = None
         self.proc = None
@@ -128,6 +176,36 @@ class ControllerCarla:
         # TODO: agregar solo waypoints de la ruta deseada
         self.map_waypoints = self.carla_map.generate_waypoints(0.5)
         self.weather = self.world.get_weather()
+        
+        # CSV Metrics from python API
+        self.use_ros = ROS_VERSION in ("1", "2")
+        
+        self.csv_path = None
+        self.csv_file = None
+        self.csv_writer = None
+        self.csv_headers = None
+        self._tick_conn = None  # connection to tick event
+        self._last_collision_impulse = 0.0
+        self._last_collision_with = ""
+        self._last_lane_invasion = ""
+        
+        # events sensors
+        self._collision_actor = None
+        self._lane_inavasion_actor = None
+        try:
+            bp_lib = self.world.get_blueprint_library()
+            #collision sensor
+            col_bp = bp_lib.find('sensor.other.collision')
+            self._collision_actor = self.world.spawn_actor(col_bp, carla.Transform(), attach_to=self.ego_vehicle)
+            weak_self = weakref.ref(self)
+            self._collision_actor.listen(lambda e: ControllerCarla._on_collision(weak_self, e))
+            # lane invasion
+            li_bp = bp_lib.find('sensor.other.lane_invasion')
+            self._lane_invasion_actor = self.world.spawn_actor(li_bp, carla.Transform(), attach_to=self.ego_vehicle)
+            self._lane_invasion_actor.listen(lambda e: ControllerCarla._on_lane_invasion(weak_self, e))
+        except Exception as e:
+            logger.warning(f"Error setting up sensors: {e}")           
+            
                
     # GUI update
     def update_frame(self, frame_id, data):
@@ -212,7 +290,7 @@ class ControllerCarla:
         
         self.recording = True
         
-        if ros_version == "2":
+        if ROS_VERSION == "2":
             command = "ros2 bag record -o " + dataset_name + "/behav_bag" + " " + " ".join(topics)
         else:
             command = "rosbag record -O " + dataset_name + " " + " ".join(topics) + " __name:=behav_bag"
@@ -228,7 +306,7 @@ class ControllerCarla:
             logger.info("No bag recording")
             return
         
-        if ros_version == "2":
+        if ROS_VERSION == "2":
             self.rosbag_proc.terminate()
             self.rosbag_proc.wait()
             logger.info("Stopped bag recording")
@@ -273,10 +351,11 @@ class ControllerCarla:
 
 
     def record_metrics(self, metrics_record_dir_path, world_counter=None, brain_counter=None, repetition_counter=None):
-        logger.info("Recording metrics bag: {}".format(metrics_record_dir_path))
-        
+        logger.info("Recording metrics: {}".format(metrics_record_dir_path))
+
         self.pilot.brain_iterations_real_time = []
-        self.time_str = time.strftime("%Y%m%d-%H%M%S") 
+        self.time_str = time.strftime("%Y%m%d-%H%M%S")
+
         if world_counter is not None:
             current_world_head, current_world_tail = os.path.split(self.pilot.configuration.current_world[world_counter])
         else:
@@ -285,15 +364,16 @@ class ControllerCarla:
             current_brain_head, current_brain_tail = os.path.split(self.pilot.configuration.brain_path[brain_counter])
         else:
             current_brain_head, current_brain_tail = os.path.split(self.pilot.configuration.brain_path)
+
         self.experiment_metrics = {
             'timestamp': self.time_str,
             'experiment_configuration': self.pilot.configuration.__dict__,
             'world_launch_file': current_world_tail,
             'brain_file': current_brain_tail,
             'robot_type': self.pilot.configuration.robot_type,
-            'carla_map': self.carla_map.name,
-            'ego_vehicle': self.ego_vehicle.type_id,
-            'vehicles_number': len(self.world.get_actors().filter('vehicle.*')),
+            'carla_map': self.carla_map.name if self.carla_map else "",
+            'ego_vehicle': (self.ego_vehicle.type_id if self.ego_vehicle else ""),
+            'vehicles_number': len(self.world.get_actors().filter('vehicle.*')) if self.world else 0,
             'async_mode': self.pilot.configuration.async_mode,
             'weather': {
                 'cloudiness': self.weather.cloudiness,
@@ -309,106 +389,151 @@ class ControllerCarla:
                 'scattering_intensity': self.weather.scattering_intensity,
                 'mie_scattering_scale': self.weather.mie_scattering_scale,
                 'rayleigh_scattering_scale': self.weather.rayleigh_scattering_scale,
-                },
+            },
         }
+
         if hasattr(self.pilot.configuration, 'experiment_model'):
-            if brain_counter is not None:
-                self.experiment_metrics['experiment_model'] = self.pilot.configuration.experiment_model[brain_counter]
-            else:
-                self.experiment_metrics['experiment_model'] = self.pilot.configuration.experiment_model
+            self.experiment_metrics['experiment_model'] = (
+                self.pilot.configuration.experiment_model[brain_counter]
+                if brain_counter is not None else self.pilot.configuration.experiment_model
+            )
 
         if hasattr(self.pilot.configuration, 'experiment_name'):
             self.experiment_metrics['experiment_name'] = self.pilot.configuration.experiment_name
-
-        if hasattr(self.pilot.configuration, 'experiment_name'):
-            self.experiment_metrics['experiment_name'] = self.pilot.configuration.experiment_name
-            self.experiment_metrics['experiment_description'] = self.pilot.configuration.experiment_description
-            self.experiment_metrics['experiment_timeout'] = self.pilot.configuration.experiment_timeouts[world_counter]
+            self.experiment_metrics['experiment_description'] = getattr(self.pilot.configuration, 'experiment_description', "")
+            if hasattr(self.pilot.configuration, 'experiment_timeouts') and world_counter is not None:
+                self.experiment_metrics['experiment_timeout'] = self.pilot.configuration.experiment_timeouts[world_counter]
             self.experiment_metrics['experiment_repetition'] = repetition_counter
-        
 
         self.metrics_record_dir_path = metrics_record_dir_path
-        os.mkdir(self.metrics_record_dir_path + self.time_str)
+        os.makedirs(os.path.join(self.metrics_record_dir_path, self.time_str), exist_ok=True)
         self.experiment_metrics_bag_filename = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str)
-        
-        topics = [
-            '/carla/npc_vehicle_1/odometry',
-            '/carla/ego_vehicle/odometry',
-            '/carla/ego_vehicle/collision',
-            '/carla/ego_vehicle/lane_invasion',
-            '/carla/ego_vehicle/speedometer',
-            '/carla/ego_vehicle/vehicle_status',
-            '/clock',
-            '/carla/ego_vehicle/rgb_front/image',  #first image
-            ]
 
-        if ros_version == "2":
-            command = "ros2 bag record -o " + self.experiment_metrics_bag_filename + " " + " ".join(topics)
+        # selection backend recording metrics
+        if not hasattr(self, 'use_ros'):
+            ros_version_local = os.environ.get('ROS_VERSION', "2")
+            self.use_ros = ros_version_local in ("1", "2")
+
+        if self.use_ros:
+            # backend ROS
+            topics = [
+                '/carla/npc_vehicle_1/odometry',
+                '/carla/ego_vehicle/odometry',
+                '/carla/ego_vehicle/collision',
+                '/carla/ego_vehicle/lane_invasion',
+                '/carla/ego_vehicle/speedometer',
+                '/carla/ego_vehicle/vehicle_status',
+                '/clock',
+                '/carla/ego_vehicle/rgb_front/image',
+            ]
+            if os.environ.get('ROS_VERSION', "2") == "2":
+                command = "ros2 bag record -o " + self.experiment_metrics_bag_filename + " " + " ".join(topics)
+            else:
+                command = "rosbag record -O " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
+
+            cmd = shlex.split(command)
+            with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
+                logger.info(f"Starting metrics bag recording with command: {' '.join(cmd)}")
+                self.proc = subprocess.Popen(cmd, stdout=out, stderr=err)
+            logger.info("Started metrics bag recording")
+
         else:
-            command = "rosbag record -O " + self.experiment_metrics_bag_filename + " " + " ".join(topics) + " __name:=behav_metrics_bag"
-        
-        command = shlex.split(command)
-        with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
-            logger.info(f"Starting metrics bag recording with command: {' '.join(command)}")
-            # time.sleep(12)  # debug
-            self.proc = subprocess.Popen(command, stdout=out, stderr=err)
+            # backend Python API
+            if not all(hasattr(self, name) for name in ("_csv_open", "_attach_tick")):
+                raise RuntimeError("Faltan helpers CSV (_csv_open/_attach_tick). Add before use Python API metrics recording.")
             
-        # with open(self.experiment_metrics_bag_filename + '_metadata.json', 'w') as f:
-        #     json.dump(self.experiment_metrics, f)
-        logger.info("Started metrics bag recording")
+            self._csv_open(self.metrics_record_dir_path)
+
+            experiment_json_meta = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str + '.meta.json')
+            with open(experiment_json_meta, 'w') as f:
+                json.dump(convert_np_to_native(self.experiment_metrics), f)
+
+            self._attach_tick()
+
+            logger.info("Started CSV metrics recording (Python API)")
+
 
     def stop_recording_metrics(self, termination_code=None, route_length=None):
-        logger.info("Stopping metrics bag recording")
+        logger.info("Stopping metrics recording")
         end_time = time.time()
 
-        if ros_version == "2":
-            # command = "ros2 node kill /behav_metrics_bag"
-            if self.proc:
-                self.proc.terminate()
-                self.proc.wait()
-                logger.info("Stopped bag recording")
+        if not hasattr(self, 'use_ros'):
+            ros_version_local = os.environ.get('ROS_VERSION', "2")
+            self.use_ros = ros_version_local in ("1", "2")
+
+        if self.use_ros:
+            # ros bag backend
+            if os.environ.get('ROS_VERSION', "2") == "2":
+                if self.proc:
+                    self.proc.terminate()
+                    self.proc.wait()
+                    logger.info("Stopped bag recording")
+            else:
+                command = "rosnode kill /behav_metrics_bag"
+                cmd = shlex.split(command)
+                with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
+                    subprocess.Popen(cmd, stdout=out, stderr=err)
+
+            timeout_counter = 20
+            bag_active_file = self.experiment_metrics_bag_filename + '.active'
+            while os.path.isfile(bag_active_file) and timeout_counter > 0:
+                time.sleep(1)
+                timeout_counter -= 1
+            if timeout_counter <= 0:
+                logger.warning(f"Timeout: {bag_active_file} not removed in time.")
+
+            experiment_metrics_filename = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str)
+            try:
+                self.experiment_metrics = metrics_carla.get_metrics(
+                    self.experiment_metrics,
+                    self.experiment_metrics_bag_filename,
+                    self.map_waypoints,
+                    experiment_metrics_filename,
+                    self.pilot.configuration
+                )
+            except Exception as e:
+                logger.error(f"Error while processing metrics (ROS): {e}")
+                self.experiment_metrics = {}
+
         else:
-            command = "rosnode kill /behav_metrics_bag"
-            command = shlex.split(command)
-            with open("./logs/.roslaunch_stdout.log", "w") as out, open("./logs/.roslaunch_stderr.log", "w") as err:
-                subprocess.Popen(command, stdout=out, stderr=err)
+            # python api backend
+            if not all(hasattr(self, name) for name in ("_detach_tick", "_csv_close")):
+                raise RuntimeError("Faltan helpers CSV (_detach_tick/_csv_close). Añádelos antes de usar el modo Python API.")
 
-        timeout_counter = 20
-        bag_active_file = self.experiment_metrics_bag_filename + '.active'
-        while os.path.isfile(bag_active_file) and timeout_counter > 0:
-            time.sleep(1)
-            timeout_counter -= 1
+            try:
+                self._detach_tick()
+            except Exception:
+                pass
+            try:
+                self._csv_close()
+            except Exception:
+                pass
 
-        if timeout_counter <= 0:
-            logger.warning(f"Timeout: {bag_active_file} not removed in time.")
-            
-        experiment_metrics_filename = self.metrics_record_dir_path + self.time_str + '/' + self.time_str
+            experiment_metrics_filename = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str)
+            try:
+                self.experiment_metrics = metrics_carla.get_metrics_python_api(
+                    self.experiment_metrics,
+                    csv_path=self.csv_path,
+                    map_waypoints=self.map_waypoints,
+                    experiment_metrics_filename=experiment_metrics_filename,
+                    config=self.pilot.configuration
+                )
+            except Exception as e:
+                logger.error(f"Error while processing metrics (CSV): {e}")
+                self.experiment_metrics = {}
         try:
-            self.experiment_metrics = metrics_carla.get_metrics(
-                self.experiment_metrics,
-                self.experiment_metrics_bag_filename,
-                self.map_waypoints,
-                experiment_metrics_filename,
-                self.pilot.configuration
-            )
-            
-        except Exception as e:
-            logger.error(f"Error while processing metrics: {e}")
-            self.experiment_metrics = { }
-
-        self.experiment_metrics['experiment_total_real_time'] = end_time - self.pilot.pilot_start_time
+            self.experiment_metrics['experiment_total_real_time'] = end_time - self.pilot.pilot_start_time
+        except Exception:
+            self.experiment_metrics['experiment_total_real_time'] = end_time - time.time()
 
         experiment_json_path = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str + '.json')
         os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
-        
-        
         with open(experiment_json_path, 'w') as f:
-            # json.dump(self.experiment_metrics, f)
             json.dump(convert_np_to_native(self.experiment_metrics), f)
 
         logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
-        logger.info("Stopped metrics bag recording")
-   
+        logger.info("Stopped metrics recording")
+    
     def save_metrics(self, first_images, last_images):        
         with open(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + '.json', 'w') as f:
             json.dump(self.experiment_metrics, f)
@@ -421,5 +546,108 @@ class ControllerCarla:
         for counter, image in enumerate(last_images):
             im = PILImage.fromarray(image)
             im.save(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + "_last_image_" + str(counter) + ".jpeg")
+            
+            
+    # python API csv metrics helpers
+    def _metrics_headers(self):
+        return [
+            "time_stamp", "frame",
+            "x", "y", "z", "yaw", "pitch", "roll",
+            "vx", "vy", "vz", "speed_mps", "speed_kmh",
+            "throttle", "steer", "brake", "reverse", "gear",
+            "collision_impulse", "collision_with", "lane_invasion",
+            "weather_cloud", "weather_rain", "weather_wetness", "weather_fog",
+            ]
+        
+    def _sample_row(self):
+        # Time/Frame (if not synced, use world.get_snapshot())
+        snap = self.world.get_snapshot()
+        ts = snap.timestamp.elapsed_seconds if snap else time.time()
+        frame = snap.frame if snap else -1
+
+        t = self.ego_vehicle.get_transform()
+        v = self.ego_vehicle.get_velocity()
+        ctrl = self.ego_vehicle.get_control()
+
+        speed_mps = math.sqrt(v.x**2 + v.y**2 + v.z**2)
+        speed_kmh = 3.6 * speed_mps
+
+        w = self.world.get_weather()
+
+        return [
+            ts, frame,
+            t.location.x, t.location.y, t.location.z,
+            t.rotation.yaw, t.rotation.pitch, t.rotation.roll,
+            v.x, v.y, v.z, speed_mps, speed_kmh,
+            getattr(ctrl, "throttle", 0.0), getattr(ctrl, "steer", 0.0),
+            getattr(ctrl, "brake", 0.0), bool(getattr(ctrl, "reverse", False)),
+            getattr(ctrl, "gear", 0),
+            self._last_collision_impulse, self._last_collision_with, self._last_lane_invasion,
+            w.cloudiness, w.precipitation, w.wetness, w.fog_density,
+        ]
+
+    def _csv_open(self, out_dir_base):
+        os.makedirs(os.path.join(out_dir_base, self.time_str), exist_ok=True)
+        self.csv_path = os.path.join(out_dir_base, self.time_str, f"{self.time_str}.csv")
+        self.csv_headers = self._metrics_headers()
+        self.csv_file = open(self.csv_path, "w", buffering=1)  # line buffered
+        # write headers
+        self.csv_file.write(",".join(self.csv_headers) + "\n")
+        logger.info(f"CSV metrics at: {self.csv_path}")
+
+    def _csv_append(self, row_vals):
+        s = ",".join(str(v) for v in convert_np_to_native(row_vals))
+        self.csv_file.write(s + "\n")
+
+    def _csv_close(self):
+        if self.csv_file:
+            try: self.csv_file.flush()
+            except Exception: pass
+            try: self.csv_file.close()
+            except Exception: pass
+            self.csv_file = None
+            
+    def _on_tick_cb(self, snapshot):
+        if self.csv_file is None:
+            return
+        try:
+            row = self._sample_row()
+            self._csv_append(row)
+        except Exception as e:
+            logger.warning(f"Failed to sample CSV: {e}")
+            
+    def _attach_tick(self):
+        if self._tick_conn is None:
+            self._tick_conn = self.world.on_tick(self._on_tick_cb)
+
+    def _detach_tick(self):
+        if self._tick_conn is not None:
+            # on_tick devuelve un objeto "event" que actúa como callable removible (en 0.9.15 es deregistrar con "None")
+            try:
+                self.world.remove_on_tick(self._tick_conn)  # si está disponible
+            except Exception:
+                # Fallback (0.9.1x no siempre expone remove_on_tick)
+                self._tick_conn = None
+            self._tick_conn = None
+
+
+        
+            
+@staticmethod
+def _on_collision(weak_self, event):
+    self = weak_self()
+    if not self: 
+        return
+    imp = event.normal_impulse
+    self._last_collision_impulse = math.sqrt(imp.x**2 + imp.y**2 + imp.z**2)
+    self._last_collision_with = event.other_actor.type_id
+    
+@staticmethod
+def _on_lane_invasion(weak_self, event):
+    self = weak_self()
+    if not self:
+        return
+    marks = [str(x.type).split('.')[-1] for x in event.crossed_lane_markings]
+    self._last_lane_invasion = "|".join(marks)        
             
     
