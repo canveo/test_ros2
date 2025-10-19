@@ -20,8 +20,8 @@ from utils import metrics_carla
 from datetime import datetime
 from pilot_carla import PilotCarla
 
-from robot.interfaces.motors import PublisherMotors
-from robot.interfaces.carla_api_motors import PublisherCARLAMotors
+# from robot.interfaces.motors import PublisherMotors
+# from robot.interfaces.carla_api_motors import PublisherCARLAMotors
 from robot.actuators import Actuators 
 
 
@@ -34,7 +34,7 @@ USE_ROS = ROS_VERSION   in ('1', '2')
 if ROS_VERSION == '2' or ROS_VERSION == '1':
     from robot.interfaces.motors import PublisherMotors
 else:
-    pass # no ROS
+    from robot.interfaces.carla_api_motors import CarlaApiMotors
 
 
 
@@ -87,9 +87,10 @@ def check_args(argv):
     
     # get ROS version from environment variable
     ROS_VERSION  = os.environ.get('ROS_VERSION ', 'None')  # Default is ROS 2
-    if ROS_VERSION  not in ['1', '2', 'None']:
-        logger.error('Invalid ROS_VERSION  environment variable. Must be "1" or "2". Killing program...')
-        sys.exit(-1)
+    USE_ROS = ROS_VERSION  in ('1', '2')
+    # if ROS_VERSION  not in ['1', '2']:
+    #     logger.error('Invalid ROS_VERSION  environment variable. Must be "1" or "2". Killing program...')
+    #     sys.exit(-1)
 
     config_data = {'config': None, 'gui': None, 'tui': None, 'script': None, 'random': False, 'ROS_VERSION ': ROS_VERSION}
     if args.config:
@@ -136,8 +137,7 @@ def init_node(ROS_VERSION ):
         logger.info('ROS2 node initialized')
         return node
     else:
-        logger.info(f"ROS node not initialized (python_api mode)")
-        # sys.exit(-1)
+        logger.info("Running in Python API mode")
         return None
 
 def main_win(configuration, controller, node):
@@ -364,10 +364,14 @@ def main():
     node = init_node(config_data['ROS_VERSION ']) # Initialize the ROS node shared by all the application
         
     app_configuration = Config(config_data['config'][0])
-        
-    # motors = PublisherMotors(node,'motors', 1, 1, 0, 0)  # Create the motors instance   # debugging
-    actuators = Actuators(app_configuration.actuators, node)  # Create the actuators instance
-    
+
+    if USE_ROS:
+        motors = PublisherMotors(node,'motors', 1, 1, 0, 0)  # Create the motors instance   # debugging
+        actuators = Actuators(app_configuration.actuators, node)  # Create the actuators instance
+    else:
+        motors = CarlaApiMotors(1, 1)  # Create the motors instance   # debugging
+        # actuators = Actuators(app_configuration.actuators, None)  # Create the actuators instance
+
     if not config_data['script']:
         if app_configuration.task not in ['follow_lane', 'follow_lane_traffic']:
             logger.info('Selected task does not support --gui. Try use --script instead. Killing program...')

@@ -100,6 +100,8 @@ elif ROS_VERSION== 'ros1':
     except Exception:
         CarlaLaneInvasionEvent = None
         CarlaCollisionEvent = None
+else:
+    CvBridge = None
 
 
 from PIL import Image as PILImage
@@ -143,7 +145,8 @@ class ControllerCarla:
         self.data = {}
         self.pose3D_data = None
         self.recording = False
-        self.cvbridge = CvBridge() 
+        self.cvbridge = CvBridge() if CvBridge else None
+
         
         self.rosbag_proc = None
         self.proc = None

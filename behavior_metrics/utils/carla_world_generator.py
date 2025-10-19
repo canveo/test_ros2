@@ -846,10 +846,12 @@ def game_loop(data):
         # Connect to CARLA
         client = carla.Client('localhost', 2000)
         client.set_timeout(20.0)
+        
+        print('Loaded map: ' + data['Simulation']['Map'])
 
         # Load world map
         client.load_world_if_different(data['Simulation']['Map'])
-
+        
         # Get instance to the world
         sim_world = client.get_world()
 

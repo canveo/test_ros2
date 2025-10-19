@@ -45,13 +45,19 @@ Behaviors:
             ImageTranform: ''
         Type: 'CARLA'
     Simulation:
-        Task: "follow_route"
+        Task: "follow_lane"
         RandomSpawnPoint: False
         World: [configs/CARLA/test_python_api.yml]
         Map: 'Town02'
         RandomSpawnPoint: False
         TestSuite: "Town02_two_turns"
         RandomizeRoutes: False
+    Experiment:
+      Name: "Carla Town02 Test Suite"
+      Description: "Testing model in Town02 with each route consisting of two turns."
+      UseWorldTimeouts: False
+      Timeout: [700] # for each world!
+      Repetitions: 1
     Dataset:
         In: '/tmp/my_bag'
         Out: ''

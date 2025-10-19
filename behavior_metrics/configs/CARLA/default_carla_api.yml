@@ -45,7 +45,7 @@ Behaviors:
             ImageTranform: ''
         Type: 'CARLA'
     Simulation:
-        World: configs/CARLA/default_carla_api.yml
+        World: /home/canveo/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml
         Map: 'Town02'
         RandomSpawnPoint: False
     Dataset:

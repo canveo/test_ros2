@@ -4,10 +4,10 @@ class CarlaApiMotors:
     def __init__(self, vmax, wmax, client_host='localhost', client_port=2000, ego_role='ego_vehicle'):
         self.vmax = float(vmax)
         self.wmax = float(wmax)
-        self._client = carla.Client(client_host, client_port)
-        self._client.set_timeout(5.0)
-        self._world = self._client.get_world()
-        self._vehicle = self._find_ego(ego_role)
+        # self._client = carla.Client(client_host, client_port)
+        # self._client.set_timeout(50)
+        # self._world = self._client.get_world()
+        # self._vehicle = self._find_ego(ego_role)
 
     def _find_ego(self, role):
         for v in self._world.get_actors().filter('vehicle.*'):

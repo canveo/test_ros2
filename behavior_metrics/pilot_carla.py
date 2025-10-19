@@ -40,13 +40,17 @@ USE_ROS = ROS_VERSION  in ('1', '2')
 if ROS_VERSION  == "2":
     import rclpy
     from rclpy.node import Node
+    from rosgraph_msgs.msg import Clock
+    from carla_msgs.msg import CarlaControl
 elif ROS_VERSION  == "1":
     import rospy
+    from rosgraph_msgs.msg import Clock
+    from carla_msgs.msg import CarlaControl
 else:
     pass # no ROS
 
-from rosgraph_msgs.msg import Clock
-from carla_msgs.msg import CarlaControl
+# from rosgraph_msgs.msg import Clock
+# from carla_msgs.msg import CarlaControl
 
 import numpy as np
 
