@@ -1,7 +1,7 @@
 Behaviors:
     Robot:
         Name: 'ego_vehicle'
-        Model: 'mercedes.coupe_2020'
+        Model: 'tesla.model3'
         Sensors:
             Cameras:
                 Camera_0:

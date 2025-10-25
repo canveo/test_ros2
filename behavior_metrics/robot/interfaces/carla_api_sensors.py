@@ -105,14 +105,13 @@ class CarlaApiPose3D:
         self._world = world
         self._ego = ego
 
-    def getPose(self):
+    def getPose3d(self):
         t: carla.Transform = self._ego.get_transform()
         v = self._ego.get_velocity()
-        pose = {
-            "x": t.location.x, "y": t.location.y, "z": t.location.z,
-            "roll": t.rotation.roll, "pitch": t.rotation.pitch, "yaw": t.rotation.yaw,
-            "vx": v.x, "vy": v.y, "vz": v.z
-        }
+        pose = type("Pose3D", (), {})() 
+        pose.x, pose.y, pose.z = t.location.x, t.location.y, t.location.z
+        pose.roll, pose.pitch, pose.yaw = t.rotation.roll, t.rotation.pitch, t.rotation.yaw
+        pose.vx, pose.vy, pose.vz = v.x, v.y, v.z
         return pose
 
     def stop(self):

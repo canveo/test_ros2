@@ -88,7 +88,7 @@ class Sensors:
         """Fill the sensor dictionary with instances of the sensor_type and sensor_config"""
         sensor_dict = {}
         for elem, cfg in sensor_config.items():
-            name = cfg['name']
+            name = cfg['Name']
             backend = cfg.get('Backend', 'ros' if USE_ROS else 'python_api').lower()
             
             if backend not in ('ros', 'python_api', 'carla_api'):

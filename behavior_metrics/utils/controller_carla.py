@@ -29,6 +29,8 @@ import json
 import math
 from utils.logger import logger
 
+from datetime import datetime
+
 import pickle
 
 ROS_VERSION = os.environ.get('ROS_VERSION', "None")
@@ -163,6 +165,7 @@ class ControllerCarla:
             
         time.sleep(30) # takes a few second for the correct map to finish loading  ->debug original en 10
         self.carla_map = self.world.get_map()
+        print("actors: ", self.world.get_actors())
         while len(self.world.get_actors().filter('vehicle.*')) == 0:
             logger.info("Waiting for vehicles!")
             time.sleep(1)

@@ -46,30 +46,55 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False,
         USE_ROS = ROS_VERSION in ('1', '2')
 
         # --- PYTHON API MODE (sin ROS) ---
-        if not USE_ROS or ROS_VERSION == 'None':
+        if USE_ROS or ROS_VERSION == 'None':
             logger.info("Launching environment in Python API mode (ROS_VERSION=None)")
-
+            
+            carla_bin = os.path.join(os.environ["CARLA_ROOT"], "CarlaUE4.sh")
+            carla_root = os.environ.get("CARLA_ROOT")
+            
             # comprobar si CARLA ya corre
             ps_output = subprocess.check_output(["ps", "-Af"], encoding="utf-8")
             carla_running = ("CarlaUE4.sh" in ps_output) or ("CarlaUE4-Linux-Shipping" in ps_output)
             print(f"Carla running: {carla_running}")
 
             # iniciar servidor CARLA si no está activo
-            if carla_running:
-                carla_bin = os.path.join(os.environ["CARLA_ROOT"], "CarlaUE4.sh")
+            if not carla_running:
+                if not os.path.exists(carla_bin):
+                    raise FileNotFoundError(f"Carla not found {carla_bin}")
+                
+                # carla_bin = os.path.join(os.environ["CARLA_ROOT"], "CarlaUE4.sh")
                 with open("/tmp/.carla_stdout.log", "w") as out, open("/tmp/.carla_stderr.log", "w") as err:
-                    subprocess.Popen([carla_bin, "-RenderOffScreen", "-quality-level=Low"], stdout=out, stderr=err)
+                    subprocess.Popen([carla_bin, "-RenderOffScreen"],  # "/bin/bash", 
+                                     cwd=carla_root,
+                                     stdout=out, stderr=err,
+                                     shell=False,
+                                     env=os.environ
+                                     )
                 logger.info("CARLA server started (Python API)")
                 time.sleep(10)
 
             # lanzar generador del mundo
+            temp = "$HOME/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml" # debuging
+            temp = os.path.expandvars(os.path.expanduser(temp)) #debuging
             world_gen_path = os.path.join(ROOT_PATH, "utils/carla_world_generator.py")
+            
+            
+            # with open("/tmp/.worldgen_stdout.log", "w") as out, open("/tmp/.worldgen_stderr.log", "w") as err:
+            #     subprocess.Popen(
+            #         [sys.executable, world_gen_path, temp],
+            #         cwd=os.path.dirname(world_gen_path),
+            #         stdout=out,
+            #         stderr=err,
+            #         start_new_session=True,
+            #     )
+            # logger.info("World generator is launched successfully (Python API)")
+
             if not os.path.exists(world_gen_path):
                 raise FileNotFoundError(f"carla_world_generator.py not found at {world_gen_path}")
 
             logger.info(f"Running world generator: {world_gen_path}")
             with open("/tmp/.worldgen_stdout.log", "w") as out, open("/tmp/.worldgen_stderr.log", "w") as err:
-                subprocess.Popen(["python3", world_gen_path], stdout=out, stderr=err)
+                subprocess.Popen(["python3", world_gen_path, temp], stdout=out, stderr=err)
             logger.info("World generator launched successfully (Python API)")
             time.sleep(5)
             return  # no seguir al flujo ROS
@@ -190,6 +215,7 @@ def close_ros_and_simulators(close_ros_resources=True):
             logger.error("SimulatorEnv: exception raised executing killall command for gzserver {}".format(ce))
 
     if ps_output.count('CarlaUE4.sh') > 0:
+        # kill zombies processes -> nohup ./CarlaUE4.sh > /dev/null 2>&1 &
         try:
             subprocess.check_call(["killall", "-9", "CarlaUE4.sh"])
             logger.debug("SimulatorEnv: CARLA server killed.")

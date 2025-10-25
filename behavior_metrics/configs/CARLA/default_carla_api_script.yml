@@ -35,11 +35,11 @@ Behaviors:
                     MaxV: 3
                     MaxW: 0.3
         InitialPosition: '262.6 327.0 1.0 0.0 0.0 180.0'
-        BrainPath: 'brains/CARLA/brain_carla_slow_and_turn.py'
+        BrainPath: ["brains/CARLA/brain_modifiedDeepestLSTM.py"]
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time
         Parameters:
-            Model: ''
+            Model: ["efficientnet_control_manual.onnx"]
             ImageCropped: True
             ImageSize: [ 200,66 ]
             ImageNormalized: True
@@ -48,10 +48,19 @@ Behaviors:
             UseOptimized: False
             ImageTranform: ''
         Type: 'CARLA'
+    Experiment:
+      Name: "Carla Town02 Test Suite"
+      Description: "Testing model in Town02 with each route consisting of two turns."
+      UseWorldTimeouts: False
+      Timeout: [700] # for each world!
+      Repetitions: 1
     Simulation:
-        World: /home/canveo/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml
+        World: [/home/canveo/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml]
         Map: 'Town02'
         RandomSpawnPoint: False
+        Task: "follow_route"
+        TestSuite: "Town02_two_turns"
+        RandomizeRoutes: False
     Dataset:
         In: '/tmp/my_bag'
         Out: ''
