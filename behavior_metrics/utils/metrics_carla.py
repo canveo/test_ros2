@@ -655,6 +655,9 @@ def get_aggregated_experiments_list(experiments_starting_time):
         except:
             print('Broken experiment: ' + folder[0])
             shutil.rmtree(folder[0])
+            
+    if not dataframes:
+        raise ValueError("No experiment metrics JSON files found. Check if test_suite_manager_carla.py ran correctly.")
 
     result = pd.concat(dataframes)
     result.index = result['timestamp'].values.tolist()
@@ -675,7 +678,7 @@ def get_aggregated_experiments_list(experiments_starting_time):
     result.loc[result['collisions'] > 0, 'suddenness_distance_speed'] = float("nan")
     result.loc[result['collisions'] > 0, 'suddenness_distance_speed_per_km'] = float("nan")
 
-    return result
+    return result 
 
 def get_maps_colors():
     maps_colors = {

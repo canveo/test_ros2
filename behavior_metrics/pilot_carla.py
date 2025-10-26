@@ -107,6 +107,7 @@ class PilotCarla(threading.Thread):
         # self.kill_event = threading.Event()
         # threading.Thread.__init__(self, args=self.stop_event)
         self.brain_path = brain_path
+        print("Brain path", self.brain_path)
         self.robot_type = self.brain_path.split("/")[-2]
         self.sensors = None
         self.actuators = None
@@ -114,8 +115,7 @@ class PilotCarla(threading.Thread):
         self.experiment_model = experiment_model
         self.initialize_robot()
         self.pose3d = self.sensors.get_pose3d('pose3d_0')
-        self.start_pose = np.array([self.pose3d.getPose3d().x, self.pose3d.getPose3d().y])
-        
+        self.start_pose = np.array([self.pose3d.getPose3d().x, self.pose3d.getPose3d().y])        
         self.previous = datetime.now()
         self.checkpoints = []
         self.metrics = {}
@@ -222,7 +222,7 @@ class PilotCarla(threading.Thread):
                     logger.error(e)
                 except Exception as ex:
                     logger.warning(type(ex).__name__)
-                    logger.warning(ex)
+                    logger.warning(f"Error in brain execution {ex}")
                     logger.warning('ERROR Pilot Carla!')
                     self.stop()
                     self.kill()

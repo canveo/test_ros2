@@ -118,8 +118,8 @@ class Sensors:
                     sensor_dict[name] = CarlaApiLidar(cfg)
                 elif sensor_type == 'pose3d':
                     sensor_dict[name] = CarlaApiPose3D(cfg)
-                elif sensor_type == 'bird_eye_view':
-                    sensor_dict[name] = BirdEyeView()
+                # elif sensor_type == 'bird_eye_view':
+                #     sensor_dict[name] = BirdEyeView()
                 elif sensor_type == 'speedometer':
                     sensor_dict[name] = CarlaApiSpeedometer(cfg)
 
