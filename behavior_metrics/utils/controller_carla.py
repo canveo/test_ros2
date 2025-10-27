@@ -637,24 +637,22 @@ class ControllerCarla:
                 self._tick_conn = None
             self._tick_conn = None
 
-
+            
+    @staticmethod
+    def _on_collision(weak_self, event):
+        self = weak_self()
+        if not self: 
+            return
+        imp = event.normal_impulse
+        self._last_collision_impulse = math.sqrt(imp.x**2 + imp.y**2 + imp.z**2)
+        self._last_collision_with = event.other_actor.type_id
         
-            
-@staticmethod
-def _on_collision(weak_self, event):
-    self = weak_self()
-    if not self: 
-        return
-    imp = event.normal_impulse
-    self._last_collision_impulse = math.sqrt(imp.x**2 + imp.y**2 + imp.z**2)
-    self._last_collision_with = event.other_actor.type_id
-    
-@staticmethod
-def _on_lane_invasion(weak_self, event):
-    self = weak_self()
-    if not self:
-        return
-    marks = [str(x.type).split('.')[-1] for x in event.crossed_lane_markings]
-    self._last_lane_invasion = "|".join(marks)        
-            
+    @staticmethod
+    def _on_lane_invasion(weak_self, event):
+        self = weak_self()
+        if not self:
+            return
+        marks = [str(x.type).split('.')[-1] for x in event.crossed_lane_markings]
+        self._last_lane_invasion = "|".join(marks)        
+        
     

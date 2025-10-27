@@ -169,6 +169,9 @@ class Brain:
      
         gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
         rgb_like = cv2.merge([gray, gray, gray])
+        
+        # rgb_like /= 255.0
+
 
         input_tensor = torch.tensor(rgb_like, dtype=torch.float32).permute(2, 0, 1) 
         
@@ -191,8 +194,21 @@ class Brain:
 
     def execute(self):
         """Main loop of the brain. This will be called iteratively each TIME_CYCLE (see pilot.py)"""      
-        rgb_image = self.camera_rgb.getImage().data  # rgb_image shape:  (768, 1024, 3)     
-        seg_image = self.camera_seg.getImage().data   # seg_image shape:  (80, 400, 3)   
+        rgb_image = self.camera_rgb.getImage()  #.data  # rgb_image shape:  (768, 1024, 3)     
+        seg_image = self.camera_seg.getImage()  #.data   # seg_image shape:  (80, 400, 3)   
+        
+        if rgb_image is None or seg_image is None:
+        # todavía no llegó frame
+            return
+        
+        if not hasattr(self, "_dbg_once"):
+            print("[DBG] rgb:", type(rgb_image), rgb_image.shape, rgb_image.dtype)
+            print("[DBG] seg:", type(seg_image), seg_image.shape, seg_image.dtype)
+            # ¿cuántos píxeles “road”?
+            road = np.array([128, 64, 128], dtype=np.uint8)  # BGR
+            road_mask = cv2.inRange(seg_image, road, road)
+            print("[DBG] road pixels:", int((road_mask > 0).sum()))
+            self._dbg_once = True
              
         self.update_frame("frame_0", rgb_image)
         self.update_frame("frame_1", seg_image)

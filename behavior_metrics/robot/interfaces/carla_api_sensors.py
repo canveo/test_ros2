@@ -36,6 +36,11 @@ def _str_pos_to_transform(pos_str):
 
 class CarlaApiCamera:
     def __init__(self, cfg):
+        
+        self._is_seg = False
+        if "Type" in cfg and "semantic_segmentation" in cfg["Type"].lower():
+            self._is_seg = True
+            
         _, self.world, self.ego = get_carla()
         bp_library = self.world.get_blueprint_library()
         camera_bp = bp_library.find(f"sensor.camera.{cfg['Type']}")
@@ -55,35 +60,19 @@ class CarlaApiCamera:
         self.sensor.listen(lambda image: self._callback(image))
 
     def _callback(self, image):
-        """Convierte el frame de CARLA a numpy RGB (H, W, 3)"""
+        """."""
         try:
-            sensor_type = getattr(self.sensor, "type_id", "")
-
-            if "semantic_segmentation" in sensor_type:
+            if self._is_seg:
                 image.convert(carla.ColorConverter.CityScapesPalette)
 
-    
-            array = np.frombuffer(image.raw_data, dtype=np.uint8)
-            array = np.reshape(array, (image.height, image.width, 4))
+            arr = np.frombuffer(image.raw_data, dtype=np.uint8)
+            arr = arr.reshape((image.height, image.width, 4))[:, :, :3]  # BGRA -> BGR
+            if not self._is_seg:
+                arr = arr[:, :, ::-1]  # BGR->RGB solo para cámaras no-SEG
 
-            # Convertir BGRA → RGB
-            rgb = array[:, :, :3][:, :, ::-1]
-
-            # Asegurar 3 canales
-            if rgb.ndim == 2:
-                rgb = np.stack([rgb] * 3, axis=-1)
-            elif rgb.shape[2] == 1:
-                rgb = np.repeat(rgb, 3, axis=2)
-
-            self.image_data = np.ascontiguousarray(rgb)
-
+            self.image_data = arr  # SEG queda en BGR con paleta CityScapes
         except Exception as e:
-            sensor_type = getattr(self.sensor, "type_id", "unknown")
-            print(f"[ERROR] Camera callback failed ({sensor_type}): {e}")
-            self.image_data = None
-
-
-
+            print(f"[ERROR] Camera callback failed: {e}")
 
     def getImage(self):
         """Devuelve la última imagen recibida (numpy.ndarray)"""
