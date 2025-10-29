@@ -51,9 +51,9 @@ class Brain:
         self.handler.update_pose3d(pose_data)
 
     def execute(self):
-        image = self.camera.getImage().data
-        image_1 = self.camera_1.getImage().data
-        image_2 = self.camera_2.getImage().data
+        image = self.camera.getImage()
+        image_1 = self.camera_1.getImage()
+        image_2 = self.camera_2.getImage()
 
         self.motors.sendThrottle(0.5)
         self.motors.sendSteer(0.05)
