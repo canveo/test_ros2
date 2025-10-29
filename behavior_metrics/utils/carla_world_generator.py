@@ -289,7 +289,7 @@ class World(object):
         self.imu_sensor = None
         self.radar_sensor = None
         self.camera_manager = None
-        self.camera_list = []
+        #self.camera_list = []
         self.max_speed = args['Robot']['Actuators']['CARLA_Motors']['Motors_0']['MaxV']
         self.spawn_point = None
         if 'InitPosition' in args['Robot']:
@@ -297,7 +297,7 @@ class World(object):
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._blueprint = 'vehicle.'+args['Robot']['Model']
-        self._cams_blueprints = [args['Robot']['Sensors']['Cameras'][cam] for cam in args['Robot']['Sensors']['Cameras']]
+        #self._cams_blueprints = [args['Robot']['Sensors']['Cameras'][cam] for cam in args['Robot']['Sensors']['Cameras']]
         self.restart()
         self.world.on_tick(hud.on_world_tick)
         self.recording_enabled = False
@@ -386,7 +386,7 @@ class World(object):
         self.car_camera_image = [None]
 
         # Cameras
-        self.spawn_cameras(blueprint_library)
+        #self.spawn_cameras(blueprint_library)
  
         if self.sync:
             self.world.tick()
@@ -480,9 +480,9 @@ class World(object):
             if sensor is not None:
                 sensor.stop()
                 sensor.destroy()
-        for camera in self.camera_list:
-            if sensor is not None:   #  revisar
-                camera.destroy()
+        #for camera in self.camera_list:
+        #    if sensor is not None: 
+        #        camera.destroy()
         if self.player is not None:
             self.player.destroy()
 

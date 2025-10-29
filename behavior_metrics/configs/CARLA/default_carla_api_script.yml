@@ -55,7 +55,7 @@ Behaviors:
       Timeout: [700] # for each world!
       Repetitions: 1
     Simulation:
-        World: [/home/canveo/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml]
+        World: [configs/CARLA/default_carla_api.yml]
         Map: 'Town02'
         RandomSpawnPoint: False
         Task: "follow_route"

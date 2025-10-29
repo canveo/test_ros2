@@ -34,8 +34,8 @@ Behaviors:
                     Topic: ''
                     MaxV: 3
                     MaxW: 0.3
-        InitialPosition: '262.6 327.0 1.0 0.0 0.0 180.0'
-        BrainPath: 'brains/CARLA/brain_carla_slow_and_turn.py'
+        InitPosition: '262.6 331.0 1.0 0.0 0.0 0.0'
+        BrainPath: 'brains/CARLA/brain_carla_slow_and_turn_api.py'
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time
         Parameters:
@@ -49,8 +49,8 @@ Behaviors:
             ImageTranform: ''
         Type: 'CARLA'
     Simulation:
-        World: /home/canveo/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml
-        Map: 'Town02'
+        World: configs/CARLA/default_carla_api.yml
+        Map: 'Town01'
         RandomSpawnPoint: False
     Dataset:
         In: '/tmp/my_bag'

@@ -368,9 +368,9 @@ def main():
     if USE_ROS:
         motors = PublisherMotors(node,'motors', 1, 1, 0, 0)  # Create the motors instance   # debugging
         actuators = Actuators(app_configuration.actuators, node)  # Create the actuators instance
-    else:
-        motors = CarlaApiMotors(1, 1)  # Create the motors instance   # debugging
-        # actuators = Actuators(app_configuration.actuators, None)  # Create the actuators instance
+    #else:
+        #motors = CarlaApiMotors(1, 1)  # Create the motors instance   # debugging
+        #actuators = Actuators(app_configuration.actuators, None)  # Create the actuators instance
 
     if not config_data['script']:
         if app_configuration.task not in ['follow_lane', 'follow_lane_traffic']:

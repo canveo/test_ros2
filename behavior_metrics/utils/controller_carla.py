@@ -37,15 +37,6 @@ ROS_VERSION = os.environ.get('ROS_VERSION', "None")
 USE_ROS = ROS_VERSION in ('1', '2')
 
 print("Controller CARLA ROS VERSION:", ROS_VERSION)
-
-# if ROS_VERSION == "2":
-#     import rclpy
-#     from rclpy.node import Node
-# elif ROS_VERSION == "1":
-#     import rospy
-#     import rosbag
-# else:
-#     pass # no ROS
     
 try:
     import carla
@@ -138,7 +129,7 @@ class ControllerCarla:
         recording {bool} -- Flag to determine if a rosbag is being recorded
     """
     
-    def __init__(self, node: Node):
+    def __init__(self, node):
         """ Constructor of the class. """
         # pass        
         self.node = node
@@ -163,7 +154,7 @@ class ControllerCarla:
             logger.warning("CARLA timeout al cerrar {}".format(e))
             self.world = None
             
-        time.sleep(30) # takes a few second for the correct map to finish loading  ->debug original en 10
+        time.sleep(10) # takes a few second for the correct map to finish loading
         self.carla_map = self.world.get_map()
       
         while len(self.world.get_actors().filter('vehicle.*')) == 0:

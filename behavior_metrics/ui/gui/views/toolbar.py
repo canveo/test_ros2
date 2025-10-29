@@ -15,12 +15,11 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 import json
 import os
 
-# import rospy
 ros_version = os.environ.get('ROS_VERSION', '2')
 if ros_version == '2':
     import rclpy
     from rclpy.node import Node
-else:
+elif ros_version == '1':
     import rospy    
 
 from PyQt5.QtCore import (QPropertyAnimation, QSequentialAnimationGroup, QSize,
@@ -56,7 +55,7 @@ class TopicsPopup(QWidget):
     Attributes:
         active_topics {list} -- List of topcis to be recorded"""
 
-    def __init__(self, node: Node):
+    def __init__(self, node):
         """Construtctor of the class"""
         QWidget.__init__(self)
         self.node = node
@@ -90,9 +89,10 @@ class TopicsPopup(QWidget):
         # topics = rospy.get_published_topics()
         if ros_version == '2':
             topics = self.node.get_topic_names_and_types()
-        else:
+        elif ros_version == '1':
             topics = rospy.get_published_topics()
-            
+        else:
+            topics = [] 
         for idx, topic in enumerate(topics):
             cont = QFrame()
             ll = QHBoxLayout()

@@ -21,7 +21,8 @@ USE_ROS = ROS_VERSION in ("1", "2")
 
 if USE_ROS:
     from .interfaces.motors import PublisherMotors, PublisherCARLAMotors
-from .interfaces.carla_api_motors import CarlaApiMotors
+else:
+    from .interfaces.carla_api_motors import CarlaApiMotors
 
 __author__ = 'fqez'
 __contributors__ = []
@@ -61,14 +62,13 @@ class Actuators:
             name = cfg['Name']
             vmax = cfg['MaxV']
             wmax = cfg['MaxW']
-            backend = cfg.get('Backend', 'ros' if USE_ROS else 'python_api')
-                
+ 
             if actuator_type == 'motor':
                 topic = cfg['Topic']
                 actuator_dict[name] = PublisherMotors(self.node, topic, vmax, wmax, 0, 0)
 
             elif actuator_type == 'carla_motor':
-                if backend == 'python_api':
+                if not USE_ROS:
                     actuator_dict[name] = CarlaApiMotors(vmax, wmax)
                 else:
                     topic = cfg.get('Topic', '')  # ROS 

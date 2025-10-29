@@ -179,7 +179,7 @@ class PilotCarla(threading.Thread):
             control_command.command = 1 # PAUSE
             control_pub.publish(control_command)
         else:
-            control_pub = None # Python API not use topics
+            control_pub = None # Python API do not use topics
 
         self.waypoint_publisher = None
         while not self.kill_event.is_set():

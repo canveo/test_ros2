@@ -64,7 +64,7 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False,
                 
                 # carla_bin = os.path.join(os.environ["CARLA_ROOT"], "CarlaUE4.sh")
                 with open("/tmp/.carla_stdout.log", "w") as out, open("/tmp/.carla_stderr.log", "w") as err:
-                    subprocess.Popen([carla_bin, "-RenderOffScreen"],  # "/bin/bash", 
+                    subprocess.Popen([carla_bin, "-RenderOffScreen", "-prefernvidia"],  # "/bin/bash", 
                                      cwd=carla_root,
                                      stdout=out, stderr=err,
                                      shell=False,
@@ -74,27 +74,16 @@ def launch_env(launch_file, random_spawn_point=False, carla_simulator=False,
                 time.sleep(10)
 
             # lanzar generador del mundo
-            temp = "$HOME/Projects/BehaviorMetrics/behavior_metrics/configs/CARLA/default_carla_api.yml" # debuging
-            temp = os.path.expandvars(os.path.expanduser(temp)) #debuging
+
+            launch_file = os.path.join(ROOT_PATH,launch_file)
             world_gen_path = os.path.join(ROOT_PATH, "utils/carla_world_generator.py")
             
-            
-            # with open("/tmp/.worldgen_stdout.log", "w") as out, open("/tmp/.worldgen_stderr.log", "w") as err:
-            #     subprocess.Popen(
-            #         [sys.executable, world_gen_path, temp],
-            #         cwd=os.path.dirname(world_gen_path),
-            #         stdout=out,
-            #         stderr=err,
-            #         start_new_session=True,
-            #     )
-            # logger.info("World generator is launched successfully (Python API)")
-
             if not os.path.exists(world_gen_path):
                 raise FileNotFoundError(f"carla_world_generator.py not found at {world_gen_path}")
 
             logger.info(f"Running world generator: {world_gen_path}")
             with open("/tmp/.worldgen_stdout.log", "w") as out, open("/tmp/.worldgen_stderr.log", "w") as err:
-                subprocess.Popen(["python3", world_gen_path, temp], stdout=out, stderr=err)
+                subprocess.Popen(["python3", world_gen_path, launch_file], stdout=out, stderr=err,)
             logger.info("World generator launched successfully (Python API)")
             time.sleep(5)
             return  # no seguir al flujo ROS

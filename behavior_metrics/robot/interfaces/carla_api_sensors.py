@@ -36,7 +36,6 @@ def _str_pos_to_transform(pos_str):
 
 class CarlaApiCamera:
     def __init__(self, cfg):
-        
         self._is_seg = False
         if "Type" in cfg and "semantic_segmentation" in cfg["Type"].lower():
             self._is_seg = True
@@ -51,7 +50,8 @@ class CarlaApiCamera:
             camera_bp.set_attribute('image_size_y', str(cfg.get('Height', '600')))
         if 'FOV' in cfg:
             camera_bp.set_attribute('fov', str(cfg['FOV']))
-
+        
+        camera_bp.set_attribute('role_name', cfg['Topic'])
         transform = _str_pos_to_transform(cfg.get('Position', '1.5 0 2.4 0 0 0'))
         self.sensor = self.world.spawn_actor(camera_bp, transform, attach_to=self.ego)
         self.image_data = None
