@@ -34,6 +34,7 @@ import yaml
 
 try:
     import pygame
+    from pygame.locals import K_h
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -835,6 +836,22 @@ class CameraManager(object):
             image.save_to_disk('_out/%08d' % image.frame)
 
 # ==============================================================================
+# -- KeyboardControl ----------------------------------------------------------
+# ==============================================================================
+
+class KeyboardControl(object):
+    """Class that handles keyboard input."""
+    def __init__(self, world):
+        world.hud.notification("Press 'H' to enable/disable HUD.", seconds=4.0)
+    def parse_events(self, client, world, clock):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return True
+            elif event.type == pygame.KEYUP:
+                if event.key == K_h :
+                    world.hud.toggle_info()
+
+# ==============================================================================
 # -- Game Loop ----------------------------------------------------------
 # ==============================================================================
 
@@ -875,12 +892,24 @@ def game_loop(data):
         clock = pygame.time.Clock()
   
         while True:
-            if not data['Robot']['AsyncMode']:
-                sim_world.tick()
+
             clock.tick_busy_loop(60)
+
             world.tick(clock)
             world.render(display)
             pygame.display.flip()
+
+            controller = KeyboardControl(world)
+
+            if not data['Robot']['AsyncMode']:
+                sim_world.tick()
+            clock.tick_busy_loop(60)
+            if controller.parse_events(client, world, clock):
+                return
+            world.tick(clock)
+            world.render(display)
+            pygame.display.flip()
+
     finally:
         if world is not None:
             world.destroy()
