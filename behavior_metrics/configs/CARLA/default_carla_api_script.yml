@@ -9,16 +9,16 @@ Behaviors:
                     Type: 'rgb'
                     Topic: 'Front'
                     Position: '1.5 0 2.4 0 0 0'
-                Camera_1:
-                    Name: 'camera_1'
-                    Type: 'semantic_segmentation'
-                    Topic: 'Seg'
-                    Position: '2.0 0 2.0 0 0 0'
                 Camera_2:
-                    Name: 'camera_2'
+                    Name: 'camera_1'
                     Type: 'depth'
                     Topic: 'Depth'
                     Position: '2.0 0 2.0 0 0 0'
+                Camera_1:
+                    Name: 'camera_2'
+                    Type: 'semantic_segmentation'
+                    Topic: 'Seg'
+                    Position: '2.0 0 2.0 0 0 0'                
             Pose3D:
                 Pose3D_0:
                     Name: 'pose3d_0'
@@ -34,12 +34,12 @@ Behaviors:
                     Topic: ''
                     MaxV: 3
                     MaxW: 0.3
-        InitialPosition: '262.6 327.0 1.0 0.0 0.0 180.0'
-        BrainPath: ["brains/CARLA/brain_modifiedDeepestLSTM.py"]
+        InitialPosition: '155.0 106.0 0.42 0.00 0.00 -180.00'
+        BrainPath: "brains/CARLA/brain_modifiedDeepestLSTM.py"
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time
         Parameters:
-            Model: ["efficientnet_control_manual.onnx"]
+            Model: "efficientnet_control_manual.onnx"
             ImageCropped: True
             ImageSize: [ 200,66 ]
             ImageNormalized: True
@@ -55,12 +55,12 @@ Behaviors:
       Timeout: [700] # for each world!
       Repetitions: 1
     Simulation:
-        World: [configs/CARLA/default_carla_api.yml]
+        World: configs/CARLA/default_carla_api_script.yml
         Map: 'Town02'
         RandomSpawnPoint: False
-        Task: "follow_route"
-        TestSuite: "Town02_two_turns"
-        RandomizeRoutes: False
+        # Task: "follow_route"
+        # TestSuite: "Town02_two_turns"
+        # RandomizeRoutes: False
     Dataset:
         In: '/tmp/my_bag'
         Out: ''

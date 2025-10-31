@@ -29,6 +29,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
+import math, json
+
 
 def circuit_distance_completed(checkpoints, lap_point):
     previous_point = []
@@ -836,3 +838,152 @@ def get_distance_other_vehicle(experiment_metrics, checkpoints, checkpoints_2):
     experiment_metrics['great_distance_pct_km'] = (total_distance and great_distance / total_distance or 0) * 100
     
     return experiment_metrics
+
+# Python API
+def _na_json(v):
+    try:
+        if v is None: return "N/A"
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)): return "N/A"
+        return float(v) if isinstance(v, (int, float)) else v
+    except Exception:
+        return "N/A"
+
+def build_json_summary(experiment_metrics: dict, extras: dict = None) -> dict:
+    """
+    Toma el dict completo 'experiment_metrics' que ya construye get_metrics(...)
+    y devuelve un resumen estable para JSON.
+    """
+    # Claves que ya genera tu pipeline (ajusta/añade si te faltan)
+    keys = [
+        # tiempos y distancias
+        "experiment_total_real_time", "experiment_total_simulated_time",
+        "completed_distance", "effective_completed_distance",
+        "percentage_completed", "completed_laps",
+        # desempeño y desvíos
+        "average_speed", "max_speed", "min_speed",
+        "position_deviation_mean", "position_deviation_total_err",
+        "position_deviation_mean_per_km",
+        # eventos
+        "collisions", "collisions_per_km",
+        "lane_invasions", "lane_invasions_per_km",
+        # “suddenness”
+        "suddenness_distance_control_commands",
+        "suddenness_distance_throttle",
+        "suddenness_distance_steer",
+        "suddenness_distance_brake_command",
+        "suddenness_distance_speed",
+        "suddenness_distance_control_command_per_km",
+        "suddenness_distance_throttle_per_km",
+        "suddenness_distance_steer_per_km",
+        "suddenness_distance_brake_command_per_km",
+        "suddenness_distance_speed_per_km",
+        # contexto
+        "experiment_model", "carla_map", "starting_point", "starting_point_map",
+    ]
+
+    out = {}
+    for k in keys:
+        if k in experiment_metrics:
+            out[k] = _na_json(experiment_metrics[k])
+
+    # extras opcionales (modelo, ruta, timestamp, etc.)
+    if extras:
+        for k, v in extras.items():
+            out[k] = _na_json(v)
+
+    return out
+
+def save_json_summary(json_path: str, summary: dict):
+    os.makedirs(os.path.dirname(json_path), exist_ok=True)
+    with open(json_path, "w") as f:
+        json.dump(summary, f, indent=2)
+        
+# --- BACKEND PYTHON API (CSV) ---
+import pandas as pd
+import numpy as np
+
+def get_metrics_python_api(experiment_metrics, csv_path, map_waypoints, experiment_metrics_filename, config):
+    """
+    Lee el CSV que genera ControllerCarla._csv_open/_csv_append y devuelve experiment_metrics
+    con un set básico de métricas (distancia, velocidades, súbitas, colisiones, invasiones).
+    Generación de mapas se puede añadir luego si lo necesitas igual que en el flujo ROS.
+    """
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as e:
+        print(f"[CSV metrics] No pude leer {csv_path}: {e}")
+        return {}
+
+    # Asegura columnas esperadas
+    for c in ["x","y","speed_mps","throttle","steer","brake","collision_impulse","collision_with","lane_invasion","time_stamp","frame"]:
+        if c not in df.columns:
+            df[c] = 0 if c not in ("collision_with","lane_invasion") else ""
+
+    # Tiempo simulado (si existe time_stamp usamos extremos)
+    try:
+        experiment_metrics["experiment_total_simulated_time"] = float(df["time_stamp"].iloc[-1] - df["time_stamp"].iloc[0])
+    except Exception:
+        experiment_metrics["experiment_total_simulated_time"] = float(len(df) / 20.0)  # aprox 20 Hz
+
+    # Distancia recorrida (en el plano XY)
+    if len(df) >= 2:
+        p = df[["x","y"]].to_numpy(dtype=float)
+        d = np.sqrt(((p[1:] - p[:-1])**2).sum(axis=1)).sum()
+        experiment_metrics["completed_distance"] = float(d)
+    else:
+        experiment_metrics["completed_distance"] = 0.0
+
+    # Velocidades
+    v_mps = df["speed_mps"].astype(float).to_numpy()
+    if len(v_mps) > 0:
+        experiment_metrics["average_speed"] = float(v_mps.mean() * 3.6)  # km/h
+        experiment_metrics["max_speed"] = float(v_mps.max() * 3.6)
+        experiment_metrics["min_speed"] = float(v_mps.min() * 3.6)
+    else:
+        experiment_metrics["average_speed"] = experiment_metrics["max_speed"] = experiment_metrics["min_speed"] = 0.0
+
+    # Súbita en comandos (L2 entre muestras consecutivas)
+    def l2_sudden(series):
+        s = series.astype(float).to_numpy()
+        if len(s) < 2: return 0.0
+        return float(np.mean(np.abs(s[1:] - s[:-1])))
+    experiment_metrics["suddenness_distance_throttle"] = l2_sudden(df["throttle"])
+    experiment_metrics["suddenness_distance_steer"]    = l2_sudden(df["steer"])
+    experiment_metrics["suddenness_distance_brake_command"] = l2_sudden(df["brake"])
+    experiment_metrics["suddenness_distance_control_commands"] = float(
+        np.mean(np.sqrt(
+            (df["throttle"].diff().fillna(0).astype(float))**2 +
+            (df["steer"].diff().fillna(0).astype(float))**2 +
+            (df["brake"].diff().fillna(0).astype(float))**2
+        ))
+    )
+
+    # Colisiones (umbral mínimo de impulso)
+    col_thr = 0.1
+    collisions_idx = df.index[df["collision_impulse"].astype(float) > col_thr]
+    experiment_metrics["collisions"] = int(len(collisions_idx))
+    experiment_metrics["collision_actor_ids"] = [str(x) for x in df.loc[collisions_idx, "collision_with"].tolist()]
+
+    # Invasiones de carril (cadena no vacía)
+    lane_idx = df.index[df["lane_invasion"].astype(str).str.strip() != ""]
+    experiment_metrics["lane_invasions"] = int(len(lane_idx))
+
+    # Per-km (evita división por cero)
+    km = max(experiment_metrics["completed_distance"]/1000.0, 1e-9)
+    experiment_metrics["collisions_per_km"] = experiment_metrics["collisions"]/km
+    experiment_metrics["lane_invasions_per_km"] = experiment_metrics["lane_invasions"]/km
+    experiment_metrics["suddenness_distance_control_command_per_km"] = experiment_metrics["suddenness_distance_control_commands"]/km
+    experiment_metrics["suddenness_distance_throttle_per_km"] = experiment_metrics["suddenness_distance_throttle"]/km
+    experiment_metrics["suddenness_distance_steer_per_km"] = experiment_metrics["suddenness_distance_steer"]/km
+    experiment_metrics["suddenness_distance_brake_command_per_km"] = experiment_metrics["suddenness_distance_brake_command"]/km
+
+    # Placeholders para compatibilidad
+    experiment_metrics.setdefault("percentage_completed", 0.0)
+    experiment_metrics.setdefault("effective_completed_distance", experiment_metrics["completed_distance"])
+    experiment_metrics.setdefault("position_deviation_mean", 0.0)
+    experiment_metrics.setdefault("position_deviation_total_err", 0.0)
+    experiment_metrics.setdefault("position_deviation_mean_per_km", 0.0)
+    experiment_metrics.setdefault("completed_laps", 0)
+
+    return experiment_metrics
+

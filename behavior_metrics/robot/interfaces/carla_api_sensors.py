@@ -60,19 +60,22 @@ class CarlaApiCamera:
         self.sensor.listen(lambda image: self._callback(image))
 
     def _callback(self, image):
-        """."""
+        import cv2
         try:
-            if self._is_seg:
-                image.convert(carla.ColorConverter.CityScapesPalette)
+            is_seg = "semantic_segmentation" in self.sensor.type_id
+            if is_seg:
+                image.convert(carla.ColorConverter.CityScapesPalette)  # coloreada
 
-            arr = np.frombuffer(image.raw_data, dtype=np.uint8)
-            arr = arr.reshape((image.height, image.width, 4))[:, :, :3]  # BGRA -> BGR
-            if not self._is_seg:
-                arr = arr[:, :, ::-1]  # BGR->RGB solo para cámaras no-SEG
-
-            self.image_data = arr  # SEG queda en BGR con paleta CityScapes
+            arr = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
+            if is_seg:
+                self.image_data = arr[:, :, :3] 
+                self.image_data = cv2.cvtColor(self.image_data, cv2.COLOR_BGR2RGB)    
+            else:
+                self.image_data = arr[:, :, :3]
+                self.image_data = cv2.cvtColor(self.image_data, cv2.COLOR_BGR2RGB)     
         except Exception as e:
             print(f"[ERROR] Camera callback failed: {e}")
+            self.image_data = None
 
     def getImage(self):
         """Devuelve la última imagen recibida (numpy.ndarray)"""

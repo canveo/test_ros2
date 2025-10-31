@@ -43,6 +43,7 @@ try:
 except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
 
+
 # ==============================================================================
 # -- Constants -------------------------------------------------------------------
 # ==============================================================================
@@ -295,6 +296,7 @@ class World(object):
         self.spawn_point = None
         if 'InitPosition' in args['Robot']:
            self.spawn_point = [float(coord) for coord in args['Robot']['InitPosition'].split()]
+           print("spawn_point", self.spawn_point)
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._blueprint = 'vehicle.'+args['Robot']['Model']
@@ -361,8 +363,10 @@ class World(object):
             # We choose a random spawn point
             spawn_points = self.world.get_map().get_spawn_points()
             init_spawn_point = random.choice(spawn_points)
+            print(f"random spawn_point {init_spawn_point}")
         else:
             init_spawn_point = self.list_to_transform(self.spawn_point)
+            print(f"init spawn_point {init_spawn_point}")
         if self.player is not None:
             self.destroy()
             self.player = self.world.try_spawn_actor(blueprint, init_spawn_point)

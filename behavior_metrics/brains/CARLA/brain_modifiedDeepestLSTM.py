@@ -103,7 +103,7 @@ class Brain:
         self.prev_yaw = None
         self.delta_yaw = 0
 
-        self.target_point = [160.0,-105.3,0.42,0.00,0.00,180.00]
+        self.target_point = [160.0,108.3,0.42,0.00,0.00,180.00]
         self.termination_code = 0  # 0: not terminated; 1: arrived at target; 2: wrong turn
     
         self._last_tick = None # para calcular el tiempo entre ticks
@@ -151,8 +151,9 @@ class Brain:
         if not isinstance(image_seg, np.ndarray):
             print(f"[DEBUG] Segmentation image type: {type(image_seg)}")
             
-        calzada_color = [128, 64, 128]
-        mask = cv2.inRange(image_seg, np.array(calzada_color), np.array(calzada_color))
+            
+        calzada_color =np.array([128, 64, 128], dtype=np.uint8)
+        mask = cv2.inRange(image_seg, calzada_color, calzada_color)
         
         masked_image = np.zeros_like(image_seg)
         masked_image[mask > 0] = [255, 255, 255]
@@ -171,8 +172,7 @@ class Brain:
         rgb_like = cv2.merge([gray, gray, gray])
         
         # rgb_like /= 255.0
-
-
+        
         input_tensor = torch.tensor(rgb_like, dtype=torch.float32).permute(2, 0, 1) 
         
         input_np = input_tensor.unsqueeze(0).cpu().numpy()        # [1,3,66,200] float32
@@ -197,19 +197,6 @@ class Brain:
         rgb_image = self.camera_rgb.getImage()  #.data  # rgb_image shape:  (768, 1024, 3)     
         seg_image = self.camera_seg.getImage()  #.data   # seg_image shape:  (80, 400, 3)   
         
-        if rgb_image is None or seg_image is None:
-        # todavía no llegó frame
-            return
-        
-        if not hasattr(self, "_dbg_once"):
-            print("[DBG] rgb:", type(rgb_image), rgb_image.shape, rgb_image.dtype)
-            print("[DBG] seg:", type(seg_image), seg_image.shape, seg_image.dtype)
-            # ¿cuántos píxeles “road”?
-            road = np.array([128, 64, 128], dtype=np.uint8)  # BGR
-            road_mask = cv2.inRange(seg_image, road, road)
-            print("[DBG] road pixels:", int((road_mask > 0).sum()))
-            self._dbg_once = True
-             
         self.update_frame("frame_0", rgb_image)
         self.update_frame("frame_1", seg_image)
 
@@ -237,6 +224,7 @@ class Brain:
 
             # Coordenadas actuales
             vx, vy = vehicle_location.x, vehicle_location.y
+            print(f"x: {vx} -> {tx}, y: {vy} -> {ty}")
 
             # Calcular distancia euclidiana 2D
             distance_to_target = math.hypot(tx - vx, ty - vy)
@@ -250,3 +238,5 @@ class Brain:
         self.motors.sendSteer(steer)
         self.motors.sendBrake(0.0)
         
+       
+

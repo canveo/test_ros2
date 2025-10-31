@@ -66,4 +66,4 @@ Behaviors:
         Frame_3:
             Name: frame_3
             Geometry: [1, 2, 1, 1]
-            Data: rgbimage
+            Data: rgbimage         

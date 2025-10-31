@@ -43,18 +43,25 @@ try:
 except ModuleNotFoundError as ex:
     logger.error('CARLA is not supported')
     
+from utils import metrics_carla
+from utils.metrics_carla import build_json_summary, save_json_summary
+    
 # from std_srvs.srv import Empty
 # from sensor_msgs.msg import Image as RosImage
 # from cv_bridge import CvBridge
 # from datetime import datetime
 # from std_msgs.msg import String
-# from utils import metrics_carla
+# 
 # from utils.constants import CARLA_INFRACTION_PENALTIES
 # try:
 #     from carla_msgs.msg import CarlaLaneInvasionEvent
 #     from carla_msgs.msg import CarlaCollisionEvent
 # except ModuleNotFoundError as ex:
 #     logger.error('CARLA is not supported')
+
+from utils import metrics_carla
+print(metrics_carla.__file__)
+print(hasattr(metrics_carla, "get_metrics_python_api"))
 
 
 # Stubs por defecto cuando no hay ROS
@@ -526,11 +533,37 @@ class ControllerCarla:
 
         experiment_json_path = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str + '.json')
         os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
-        with open(experiment_json_path, 'w') as f:
-            json.dump(convert_np_to_native(self.experiment_metrics), f)
+        with open(experiment_json_path, 'w') as f:            
+            try:
+                self.experiment_metrics['experiment_total_real_time'] = end_time - self.pilot.pilot_start_time
+            except Exception:
+                self.experiment_metrics['experiment_total_real_time'] = end_time - time.time()
 
-        logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
-        logger.info("Stopped metrics recording")
+            # Ruta base (igual que antes)
+            experiment_json_path = os.path.join(self.metrics_record_dir_path, self.time_str, self.time_str + '.json')
+            os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
+
+            # 
+            summary = build_json_summary(
+                experiment_metrics=self.experiment_metrics,
+                extras={
+                    "timestamp": self.time_str,
+                    "world": getattr(self.pilot.configuration, "current_world", "N/A"),
+                    "brain": getattr(self.pilot.configuration, "brain_path", "N/A"),
+                    "experiment_name": getattr(self.pilot.configuration, "experiment_name", "N/A"),
+                    # "gpu_inference": getattr(self.pilot.brain, "gpu_inference", getattr(self, "use_gpu", "N/A")),
+                }
+            )
+
+            # Guardar
+            save_json_summary(experiment_json_path, summary)
+
+            logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
+            logger.info("Stopped metrics recording")
+
+
+            logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
+            logger.info("Stopped metrics recording")
     
     def save_metrics(self, first_images, last_images):        
         with open(self.metrics_record_dir_path + self.time_str + '/' + self.time_str + '.json', 'w') as f:
