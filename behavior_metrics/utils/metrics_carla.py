@@ -417,9 +417,35 @@ def get_lane_invasions(experiment_metrics, lane_invasion_points, df_checkpoints)
     return experiment_metrics, lane_invasion_checkpoints
 
 def get_position_deviation_and_effective_completed_distance(experiment_metrics, checkpoints, map_waypoints, experiment_metrics_filename, speedometer, collision_points, lane_invasion_checkpoints):
+
     map_waypoints_tuples = []
     map_waypoints_tuples_x = []
     map_waypoints_tuples_y = []
+    
+    ## nuevo
+   
+    if not map_waypoints_tuples:
+        # trayectoria del experimento (sin mapa)
+        checkpoints_tuples_x = []
+        checkpoints_tuples_y = []
+        for i, point in enumerate(checkpoints):
+            checkpoints_tuples_x.append(point['pose.pose.position.x'])
+            checkpoints_tuples_y.append(point['pose.pose.position.y'])
+
+        experiment_metrics.setdefault('effective_completed_distance', experiment_metrics.get('completed_distance', 0.0))
+        experiment_metrics.setdefault('position_deviation_mean', 0.0)
+        experiment_metrics.setdefault('position_deviation_total_err', 0.0)
+        km = max(experiment_metrics['effective_completed_distance']/1000.0, 1e-9)
+        experiment_metrics.setdefault('position_deviation_mean_per_km', experiment_metrics['position_deviation_mean']/km)
+        experiment_metrics['starting_point_map'] = (checkpoints_tuples_x[0], checkpoints_tuples_y[0]) if checkpoints_tuples_x else (0.0, 0.0)
+
+       
+        return experiment_metrics
+
+    ###
+
+    
+    
     for waypoint in map_waypoints:
         if (experiment_metrics['carla_map'] == 'Carla/Maps/Town04' or experiment_metrics['carla_map'] == 'Carla/Maps/Town04_Opt'):
             map_waypoints_tuples_x.append(-waypoint.transform.location.x)
@@ -458,31 +484,63 @@ def get_position_deviation_and_effective_completed_distance(experiment_metrics, 
         checkpoints_tuples_y.append(checkpoint_y)
         checkpoints_speeds.append(current_checkpoint[2])
         checkpoints_tuples.append((checkpoint_x, checkpoint_y, current_checkpoint[2]))
+    # min_dists = []
+    # best_checkpoint_points_x = []
+    # best_checkpoint_points_y = []
+
+    # covered_checkpoints = []
+    # for error_counter, checkpoint in enumerate(checkpoints_tuples):
+    #     min_dist = 100
+    #     for x, perfect_checkpoint in enumerate(map_waypoints_tuples):
+    #         point_1 = np.array([checkpoint[0], checkpoint[1]])
+    #         point_2 = np.array([perfect_checkpoint[0], perfect_checkpoint[1]])
+    #         dist = (point_2 - point_1) ** 2
+    #         dist = np.sum(dist, axis=0)
+    #         dist = np.sqrt(dist)
+    #         if dist < min_dist:
+    #             min_dist = dist
+    #             best_checkpoint = x
+    #             best_checkpoint_point_x = point_2[0]
+    #             best_checkpoint_point_y = point_2[1]
+    #     best_checkpoint_points_x.append(best_checkpoint_point_x)
+    #     best_checkpoint_points_y.append(best_checkpoint_point_y)
+    #     if min_dist < 100:
+    #         min_dists.append(min_dist)
+    #         if len(covered_checkpoints) == 0 or (len(covered_checkpoints) > 0 and covered_checkpoints[len(covered_checkpoints)-1][0] != best_checkpoint_point_x and covered_checkpoints[len(covered_checkpoints)-1][1] != best_checkpoint_point_y):
+    #             if min_dist < 1:
+    #                 covered_checkpoints.append((best_checkpoint_point_x, best_checkpoint_point_y))
     min_dists = []
     best_checkpoint_points_x = []
     best_checkpoint_points_y = []
 
     covered_checkpoints = []
-    for error_counter, checkpoint in enumerate(checkpoints_tuples):
-        min_dist = 100
-        for x, perfect_checkpoint in enumerate(map_waypoints_tuples):
-            point_1 = np.array([checkpoint[0], checkpoint[1]])
-            point_2 = np.array([perfect_checkpoint[0], perfect_checkpoint[1]])
-            dist = (point_2 - point_1) ** 2
-            dist = np.sum(dist, axis=0)
-            dist = np.sqrt(dist)
+    for checkpoint in checkpoints_tuples:
+        cx, cy = checkpoint[0], checkpoint[1]
+        min_dist = float('inf')
+
+        # Por defecto, el “mejor” es el propio punto (evita variables sin asignar)
+        best_checkpoint_point_x = cx
+        best_checkpoint_point_y = cy
+
+        for mx, my in map_waypoints_tuples:
+            dist = math.hypot(mx - cx, my - cy)
             if dist < min_dist:
                 min_dist = dist
-                best_checkpoint = x
-                best_checkpoint_point_x = point_2[0]
-                best_checkpoint_point_y = point_2[1]
+                best_checkpoint_point_x = mx
+                best_checkpoint_point_y = my
+
         best_checkpoint_points_x.append(best_checkpoint_point_x)
         best_checkpoint_points_y.append(best_checkpoint_point_y)
+
         if min_dist < 100:
             min_dists.append(min_dist)
-            if len(covered_checkpoints) == 0 or (len(covered_checkpoints) > 0 and covered_checkpoints[len(covered_checkpoints)-1][0] != best_checkpoint_point_x and covered_checkpoints[len(covered_checkpoints)-1][1] != best_checkpoint_point_y):
+            # Registra “checkpoints cubiertos” solo si no repites el último
+            if not covered_checkpoints or covered_checkpoints[-1] != (best_checkpoint_point_x, best_checkpoint_point_y):
                 if min_dist < 1:
                     covered_checkpoints.append((best_checkpoint_point_x, best_checkpoint_point_y))
+                    
+    # =======
+
 
     experiment_metrics['effective_completed_distance'] = len(covered_checkpoints)*0.5
     experiment_metrics['position_deviation_mean'] = sum(min_dists) / len(min_dists)  
@@ -853,20 +911,15 @@ def build_json_summary(experiment_metrics: dict, extras: dict = None) -> dict:
     Toma el dict completo 'experiment_metrics' que ya construye get_metrics(...)
     y devuelve un resumen estable para JSON.
     """
-    # Claves que ya genera tu pipeline (ajusta/añade si te faltan)
     keys = [
-        # tiempos y distancias
         "experiment_total_real_time", "experiment_total_simulated_time",
         "completed_distance", "effective_completed_distance",
         "percentage_completed", "completed_laps",
-        # desempeño y desvíos
         "average_speed", "max_speed", "min_speed",
         "position_deviation_mean", "position_deviation_total_err",
         "position_deviation_mean_per_km",
-        # eventos
         "collisions", "collisions_per_km",
         "lane_invasions", "lane_invasions_per_km",
-        # “suddenness”
         "suddenness_distance_control_commands",
         "suddenness_distance_throttle",
         "suddenness_distance_steer",
@@ -877,7 +930,6 @@ def build_json_summary(experiment_metrics: dict, extras: dict = None) -> dict:
         "suddenness_distance_steer_per_km",
         "suddenness_distance_brake_command_per_km",
         "suddenness_distance_speed_per_km",
-        # contexto
         "experiment_model", "carla_map", "starting_point", "starting_point_map",
     ]
 
@@ -984,6 +1036,44 @@ def get_metrics_python_api(experiment_metrics, csv_path, map_waypoints, experime
     experiment_metrics.setdefault("position_deviation_total_err", 0.0)
     experiment_metrics.setdefault("position_deviation_mean_per_km", 0.0)
     experiment_metrics.setdefault("completed_laps", 0)
+    
+    # Metrics plot (*.png file)
+    try:
+        checkpoints = [
+            {'pose.pose.position.x': float(x), 'pose.pose.position.y': float(y)}
+            for x, y in df[['x', 'y']].to_numpy()
+        ]
+
+        speedometer_points = [
+            {'data': float(v)} for v in df['speed_mps'].astype(float).to_numpy()
+        ]
+
+        col_thr = 0.1
+        collisions_idx = df.index[df['collision_impulse'].astype(float) > col_thr].tolist()
+        collisions_checkpoints = [
+            {'pose.pose.position.x': float(df.at[i, 'x']), 'pose.pose.position.y': float(df.at[i, 'y'])}
+            for i in collisions_idx
+        ]
+
+        lane_idx = df.index[df['lane_invasion'].astype(str).str.strip() != ""].tolist()
+        lane_invasion_checkpoints = [
+            {'pose.pose.position.x': float(df.at[i, 'x']), 'pose.pose.position.y': float(df.at[i, 'y'])}
+            for i in lane_idx
+        ]
+
+        experiment_metrics = get_position_deviation_and_effective_completed_distance(
+            experiment_metrics=experiment_metrics,
+            checkpoints=checkpoints,
+            map_waypoints=map_waypoints,
+            experiment_metrics_filename=experiment_metrics_filename,
+            speedometer=speedometer_points,
+            collision_points=collisions_checkpoints,
+            lane_invasion_checkpoints=lane_invasion_checkpoints,
+        )
+
+    except Exception as e:
+        print(f"[CSV metrics] Falló el postproceso de mapa/errores/PNG: {e}")
+
 
     return experiment_metrics
 

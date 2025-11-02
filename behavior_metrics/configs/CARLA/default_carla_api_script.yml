@@ -34,8 +34,8 @@ Behaviors:
                     Topic: ''
                     MaxV: 3
                     MaxW: 0.3
-        InitialPosition: '155.0 106.0 0.42 0.00 0.00 -180.00'
-        BrainPath: "brains/CARLA/brain_modifiedDeepestLSTM.py"
+        InitPosition: '150.24 191.77 0.50 0.00 -0.00 0.00'
+        BrainPath: 'brains/CARLA/brain_modifiedDeepestLSTM.py'
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time
         Parameters:
@@ -48,19 +48,10 @@ Behaviors:
             UseOptimized: False
             ImageTranform: ''
         Type: 'CARLA'
-    Experiment:
-      Name: "Carla Town02 Test Suite"
-      Description: "Testing model in Town02 with each route consisting of two turns."
-      UseWorldTimeouts: False
-      Timeout: [700] # for each world!
-      Repetitions: 1
     Simulation:
         World: configs/CARLA/default_carla_api_script.yml
         Map: 'Town02'
         RandomSpawnPoint: False
-        # Task: "follow_route"
-        # TestSuite: "Town02_two_turns"
-        # RandomizeRoutes: False
     Dataset:
         In: '/tmp/my_bag'
         Out: ''

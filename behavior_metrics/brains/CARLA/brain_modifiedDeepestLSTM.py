@@ -224,7 +224,7 @@ class Brain:
 
             # Coordenadas actuales
             vx, vy = vehicle_location.x, vehicle_location.y
-            print(f"x: {vx} -> {tx}, y: {vy} -> {ty}")
+            # print(f"x: {vx} -> {tx}, y: {vy} -> {ty}")
 
             # Calcular distancia euclidiana 2D
             distance_to_target = math.hypot(tx - vx, ty - vy)

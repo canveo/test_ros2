@@ -292,11 +292,11 @@ class World(object):
         self.radar_sensor = None
         self.camera_manager = None
         #self.camera_list = []
-        self.max_speed = args['Robot']['Actuators']['CARLA_Motors']['Motors_0']['MaxV']
-        self.spawn_point = None
+        self.max_speed = args['Robot']['Actuators']['CARLA_Motors']['Motors_0']['MaxV']  
+        self.spawn_point = None      
         if 'InitPosition' in args['Robot']:
            self.spawn_point = [float(coord) for coord in args['Robot']['InitPosition'].split()]
-           print("spawn_point", self.spawn_point)
+           print("spawn_point", self.spawn_point)            
         self._weather_presets = find_weather_presets()
         self._weather_index = 0
         self._blueprint = 'vehicle.'+args['Robot']['Model']
@@ -363,10 +363,10 @@ class World(object):
             # We choose a random spawn point
             spawn_points = self.world.get_map().get_spawn_points()
             init_spawn_point = random.choice(spawn_points)
-            print(f"random spawn_point {init_spawn_point}")
+            print(f"random {init_spawn_point}")
         else:
             init_spawn_point = self.list_to_transform(self.spawn_point)
-            print(f"init spawn_point {init_spawn_point}")
+            print("transform", init_spawn_point)
         if self.player is not None:
             self.destroy()
             self.player = self.world.try_spawn_actor(blueprint, init_spawn_point)
@@ -374,7 +374,7 @@ class World(object):
             self.modify_vehicle_physics(self.player)
         while self.player is None:
             self.player = self.world.try_spawn_actor(blueprint, init_spawn_point)
-            print(self.player)
+            print(f"player {self.player}")
             self.show_vehicle_telemetry = False
             self.modify_vehicle_physics(self.player)
         
