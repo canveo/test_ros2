@@ -34,7 +34,7 @@ Behaviors:
                     Topic: ''
                     MaxV: 3
                     MaxW: 0.3
-        InitPosition: '150.24 191.77 0.50 0.00 -0.00 0.00'
+        InitPosition: '155.0 109.40 0.50 0.00 0.00 180.00'  # '151.75 109.40 0.50 0.00 0.00 -0.00'
         BrainPath: 'brains/CARLA/brain_modifiedDeepestLSTM.py'
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time
