@@ -34,7 +34,8 @@ Behaviors:
                     Topic: ''
                     MaxV: 3
                     MaxW: 0.3
-        InitPosition: '155.0 109.40 0.50 0.00 0.00 180.00'  # '151.75 109.40 0.50 0.00 0.00 -0.00'
+        # InitPosition: '151.75 109.40 0.50 0.00 0.00 -0.00'
+        InitPosition: '-3.68 121.21 0.50 0.00 90.00 0.00'  # 'x y z pitch yaw roll'
         BrainPath: 'brains/CARLA/brain_modifiedDeepestLSTM.py'
         PilotTimeCycle: 20 # Turn up to reduce number of control decisions
         AsyncMode: True # Set to False to control simulator time

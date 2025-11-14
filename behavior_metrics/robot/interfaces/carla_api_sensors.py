@@ -2,6 +2,7 @@ import os
 import math
 import numpy as np
 import carla
+import cv2
 
 _client = _world = _ego = None
 
@@ -60,7 +61,7 @@ class CarlaApiCamera:
         self.sensor.listen(lambda image: self._callback(image))
 
     def _callback(self, image):
-        import cv2
+        
         try:
             is_seg = "semantic_segmentation" in self.sensor.type_id
             if is_seg:

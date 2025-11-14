@@ -3,9 +3,7 @@
 import numpy as np
 import carla
 
-# Si ya tienes get_carla() en carla_api_sensors, reutilízalo:
 from robot.interfaces.carla_api_sensors import get_carla
-
 
 class CarlaApiMotors:
     def __init__(self, vmax=3.0, wmax=0.3):
@@ -23,7 +21,6 @@ class CarlaApiMotors:
         self.maxW = wmax
 
     def _apply(self):
-        # Aplica inmediatamente cada cambio (simple y efectivo)
         self._vehicle.apply_control(self._control)
 
     def sendThrottle(self, throttle: float):

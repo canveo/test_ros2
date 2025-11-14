@@ -75,7 +75,7 @@ CvBridge = None
 CarlaLaneInvasionEvent = None
 CarlaCollisionEvent = None
 
-if ROS_VERSION == "ros2":
+if ROS_VERSION == "2":
     import rclpy
     from rclpy.node import Node
     from std_msgs.msg import String
@@ -91,7 +91,7 @@ if ROS_VERSION == "ros2":
         CarlaLaneInvasionEvent = None
         CarlaCollisionEvent = None
 
-elif ROS_VERSION == "ros1":
+elif ROS_VERSION == "1":
     import rospy
     from std_msgs.msg import String
     from sensor_msgs.msg import Image as RosImage
@@ -385,13 +385,7 @@ class ControllerCarla:
         self.pause_pilot()
         self.pilot.initialize_robot()
 
-    def record_metrics(
-        self,
-        metrics_record_dir_path,
-        world_counter=None,
-        brain_counter=None,
-        repetition_counter=None,
-    ):
+    def record_metrics(self, metrics_record_dir_path, world_counter=None, brain_counter=None, repetition_counter=None):
         logger.info("Recording metrics: {}".format(metrics_record_dir_path))
 
         self.pilot.brain_iterations_real_time = []
@@ -623,44 +617,45 @@ class ControllerCarla:
             self.metrics_record_dir_path, self.time_str, self.time_str + ".json"
         )
         os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
-        with open(experiment_json_path, "w") as f:
-            try:
-                self.experiment_metrics["experiment_total_real_time"] = (
-                    end_time - self.pilot.pilot_start_time
-                )
-            except Exception:
-                self.experiment_metrics["experiment_total_real_time"] = (
-                    end_time - time.time()
-                )
+        # with open(experiment_json_path, "w") as f:
+            # try:
+        self.experiment_metrics["experiment_total_real_time"] = (
+            # end_time - self.pilot.pilot_start_time
+            end_time - getattr(self.pilot, "pilot_start_time", end_time)
+        )
+        # except Exception:
+        #     self.experiment_metrics["experiment_total_real_time"] = (
+        #         end_time - time.time()
+        #     )
 
-            # Ruta base (igual que antes)
-            experiment_json_path = os.path.join(
-                self.metrics_record_dir_path, self.time_str, self.time_str + ".json"
-            )
-            os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
+        # Ruta base (igual que antes)
+        experiment_json_path = os.path.join(
+            self.metrics_record_dir_path, self.time_str, self.time_str + ".json"
+        )
+        os.makedirs(os.path.dirname(experiment_json_path), exist_ok=True)
 
-            #
-            summary = build_json_summary(
-                experiment_metrics=self.experiment_metrics,
-                extras={
-                    "timestamp": self.time_str,
-                    "world": getattr(self.pilot.configuration, "current_world", "N/A"),
-                    "brain": getattr(self.pilot.configuration, "brain_path", "N/A"),
-                    "experiment_name": getattr(
-                        self.pilot.configuration, "experiment_name", "N/A"
-                    ),
-                    # "gpu_inference": getattr(self.pilot.brain, "gpu_inference", getattr(self, "use_gpu", "N/A")),
-                },
-            )
+        #
+        summary = build_json_summary(
+            experiment_metrics=self.experiment_metrics,
+            extras={
+                "timestamp": self.time_str,
+                "world": getattr(self.pilot.configuration, "current_world", "N/A"),
+                "brain": getattr(self.pilot.configuration, "brain_path", "N/A"),
+                "experiment_name": getattr(
+                    self.pilot.configuration, "experiment_name", "N/A"
+                ),
+                # "gpu_inference": getattr(self.pilot.brain, "gpu_inference", getattr(self, "use_gpu", "N/A")),
+            },
+        )
 
-            # Guardar
-            save_json_summary(experiment_json_path, summary)
+        # Guardar
+        save_json_summary(experiment_json_path, summary)
 
-            logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
-            logger.info("Stopped metrics recording")
+        logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
+        logger.info("Stopped metrics recording")
 
-            logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
-            logger.info("Stopped metrics recording")
+        logger.info(f"Metrics stored in JSON file: {experiment_json_path}")
+        logger.info("Stopped metrics recording")
 
     def save_metrics(self, first_images, last_images):
         with open(
